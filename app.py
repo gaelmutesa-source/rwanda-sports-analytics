@@ -51,56 +51,6 @@ def generate_pdf_report(player_data, radar_img_bytes):
     with open("temp_radar.png", "wb") as f:
         f.write(radar_img_bytes)
     pdf.image("temp_radar.png", x=110, y=45, w=85)
-# --- RADAR CHART LOGIC ---
-categories = ['Technical', 'Tactical', 'Physical', 'Mental']
-values_a = [player_data['Tech_Score'], player_data['Tact_Score'], 
-            player_data['Phys_Score'], player_data['Ment_Score']]
-
-fig = go.Figure()
-
-# 1. Add Player A (The Main Player)
-fig.add_trace(go.Scatterpolar(
-    r=values_a, 
-    theta=categories, 
-    fill='toself', 
-    name=selected_player,
-    line_color='#1f77b4' # Professional Blue
-))
-
-# 2. Add Player B (Only if comparison is enabled)
-if compare_mode:
-    player_b_name = st.sidebar.selectbox("Select Player B", df['player_name'].unique(), index=1)
-    player_b_data = df[df['player_name'] == player_b_name].iloc[0]
-    
-    values_b = [player_b_data['Tech_Score'], player_b_data['Tact_Score'], 
-                player_b_data['Phys_Score'], player_b_data['Ment_Score']]
-    
-    fig.add_trace(go.Scatterpolar(
-        r=values_b, 
-        theta=categories, 
-        fill='toself', 
-        name=player_b_name,
-        line_color='#ff7f0e' # Contrast Orange
-    ))
-
-# 3. Update Layout
-fig.update_layout(
-    polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-    showlegend=True,
-    margin=dict(l=20, r=20, t=20, b=20)
-)
-
-# 4. Display the Chart (Make sure this is AFTER all traces are added)
-st.plotly_chart(fig, use_container_width=True)    
-    # Pillar Breakdown
-    pdf.ln(5)
-    pdf.set_font('Arial', 'B', 11)
-    for pillar in ['Technical', 'Tactical', 'Physical', 'Mental']:
-        score = player_data[f'{pillar[:4]}_Score'] # Matches Tech_Score, Tact_Score etc.
-        pdf.cell(40, 10, f"{pillar}:", border=0)
-        pdf.cell(20, 10, f"{score:.1f}", border=0, ln=True)
-
-    return pdf.output(dest='S').encode('latin-1')
 
 # --- 2. USER INTERFACE ---
 st.title("⚽ Rwanda Football Analytics Platform")
