@@ -1,4 +1,6 @@
 streamlit
 pandas
-openpyxl
 plotly
+fpdf
+openpyxl
+kaleido
