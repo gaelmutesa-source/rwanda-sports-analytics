@@ -1,37 +1,64 @@
+import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
-def calculate_player_performance(data):
-    # 1. Define Pillar Weights
-    weights = {'technical': 0.35, 'tactical': 0.25, 'physical': 0.25, 'mental': 0.15}
+# Page Configuration
+st.set_page_config(page_title="Rwanda Sports Analytics", layout="wide")
+
+st.title("⚽ Rwanda Football Performance Index")
+st.sidebar.header("Control Panel")
+
+# 1. File Uploader
+uploaded_file = st.sidebar.file_uploader("Upload Match Data (CSV or Excel)", type=["csv", "xlsx"])
+
+def calculate_tpi(df):
+    # Weights for the 4 Pillars
+    weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
     
-    # 2. Normalize raw stats to a 0-100 scale (Example for a Striker)
-    # In a real scenario, 'max_val' would be the league record/benchmark
-    data['tech_score'] = ((data['goals_per_90'] / 1.0) * 60 + (data['shot_conv_rate'] / 30) * 40)
-    data['tact_score'] = (data['pressing_efficiency'] + data['positioning_rating']) / 2
-    data['phys_score'] = ((data['sprint_speed'] / 35) * 100)
-    data['ment_score'] = (data['composure'] + data['big_game_impact']) / 2
-
-    # 3. Calculate Final TPI
-    data['TPI'] = (
-        (data['tech_score'] * weights['technical']) +
-        (data['tact_score'] * weights['tactical']) +
-        (data['phys_score'] * weights['physical']) +
-        (data['ment_score'] * weights['mental'])
-    )
+    # Simple scoring logic (assuming columns exist in your data)
+    # This is where your "Secret Sauce" formulas live
+    df['Tech_Score'] = df.get('pass_accuracy', 50) * 0.6 + df.get('dribble_success', 50) * 0.4
+    df['Tact_Score'] = df.get('interceptions', 5) * 10
+    df['Phys_Score'] = df.get('sprint_speed', 25) * 3
+    df['Ment_Score'] = df.get('composure', 70)
     
-    return data
+    df['TPI'] = (df['Tech_Score'] * weights['Technical'] + 
+                 df['Tact_Score'] * weights['Tactical'] + 
+                 df['Phys_Score'] * weights['Physical'] + 
+                 df['Ment_Score'] * weights['Mental'])
+    return df
 
-# Sample Usage
-raw_stats = pd.DataFrame({
-    'player': ['Striker A'],
-    'goals_per_90': [0.65],
-    'shot_conv_rate': [22],
-    'pressing_efficiency': [75],
-    'positioning_rating': [80],
-    'sprint_speed': [32.5],
-    'composure': [85],
-    'big_game_impact': [70]
-})
+if uploaded_file:
+    # Load Data
+    if uploaded_file.name.endswith('.csv'):
+        df = pd.read_csv(uploaded_file)
+    else:
+        df = pd.read_excel(uploaded_file)
+    
+    df = calculate_tpi(df)
 
-final_report = calculate_player_performance(raw_stats)
-print(final_report[['player', 'TPI']])
+    # 2. Player Selection
+    player_list = df['player_name'].unique()
+    selected_player = st.selectbox("Select Player to Analyze", player_list)
+    
+    player_data = df[df['player_name'] == selected_player].iloc[0]
+
+    # 3. Radar Chart (The Professional "Scouting" View)
+    categories = ['Technical', 'Tactical', 'Physical', 'Mental']
+    values = [player_data['Tech_Score'], player_data['Tact_Score'], 
+              player_data['Phys_Score'], player_data['Ment_Score']]
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=values, theta=categories, fill='toself', name=selected_player))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=True)
+
+    col1, col2 = st.columns([1, 2])
+    with col1:
+        st.metric("Total Performance Index (TPI)", f"{player_data['TPI']:.1f}")
+        st.write(f"**Position:** {player_data.get('position', 'N/A')}")
+    with col2:
+        st.plotly_chart(fig)
+
+else:
+    st.info("Waiting for data upload. Please upload a CSV file with columns: player_name, pass_accuracy, dribble_success, etc.")
