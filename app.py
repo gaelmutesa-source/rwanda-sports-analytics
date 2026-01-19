@@ -62,3 +62,66 @@ if uploaded_file:
 
 else:
     st.info("Waiting for data upload. Please upload a CSV file with columns: player_name, pass_accuracy, dribble_success, etc.")
+    
+    from fpdf import FPDF
+import base64
+
+def create_pdf(player_data, radar_image_path):
+    pdf = FPDF()
+    pdf.add_page()
+    
+    # Header & Branding
+    pdf.set_font('Arial', 'B', 20)
+    pdf.cell(0, 10, 'RWANDA PERFORMANCE SCOUTING REPORT', ln=True, align='C')
+    pdf.set_font('Arial', '', 10)
+    pdf.cell(0, 10, 'Strictly Confidential - Powered by Your Company Name', ln=True, align='C')
+    pdf.line(10, 30, 200, 30)
+
+    # Player Info Section
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.cell(0, 10, f"Player: {player_data['player_name']}", ln=True)
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(0, 8, f"Position: {player_data['position']}", ln=True)
+    pdf.cell(0, 8, f"Current TPI Score: {player_data['TPI']:.1f} / 100", ln=True)
+
+    # KPI Breakdown Table
+    pdf.ln(5)
+    pdf.set_font('Arial', 'B', 12)
+    pdf.cell(50, 10, 'Pillar', border=1)
+    pdf.cell(50, 10, 'Score', border=1, ln=True)
+    pdf.set_font('Arial', '', 12)
+    pdf.cell(50, 10, 'Technical', border=1)
+    pdf.cell(50, 10, f"{player_data['Tech_Score']:.1f}", border=1, ln=True)
+    pdf.cell(50, 10, 'Tactical', border=1)
+    pdf.cell(50, 10, f"{player_data['Tact_Score']:.1f}", border=1, ln=True)
+    
+    # Insert Radar Chart (Visual)
+    # Note: Streamlit charts must be saved as images first to be put in PDF
+    pdf.image(radar_image_path, x=110, y=50, w=90)
+
+    # Final Recommendation
+    tpi = player_data['TPI']
+    verdict = "ELITE" if tpi > 85 else "PROFESSIONAL" if tpi > 70 else "DEVELOPING"
+    pdf.ln(20)
+    pdf.set_font('Arial', 'B', 14)
+    pdf.set_text_color(255, 0, 0) if verdict == "ELITE" else pdf.set_text_color(0, 0, 0)
+    pdf.cell(0, 10, f"SCOUTING VERDICT: {verdict}", ln=True)
+    
+    return pdf.output(dest='S').encode('latin-1')
+
+# --- Inside your Streamlit App logic ---
+if st.button("Generate Professional PDF Report"):
+    # 1. Save the plotly chart as a temp image
+    fig.write_image("temp_radar.png") 
+    
+    # 2. Generate PDF
+    pdf_bytes = create_pdf(player_data, "temp_radar.png")
+    
+    # 3. Create Download Link
+    st.download_button(
+        label="Download PDF Scouting Report",
+        data=pdf_bytes,
+        file_name=f"{player_data['player_name']}_Scouting_Report.pdf",
+        mime="application/pdf"
+    )
