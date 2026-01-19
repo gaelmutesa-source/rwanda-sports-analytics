@@ -70,4 +70,44 @@ if uploaded_file:
     df = pd.read_csv(uploaded_file)
     df = calculate_tpi(df)
     
-    selected_player = st.selectbox("Select Player to Analyze", df['
+    selected_player = st.selectbox("Select Player to Analyze", df['player_name'].unique())
+    player_data = df[df['player_name'] == selected_player].iloc[0]
+    
+    # Create Radar Chart
+    categories = ['Technical', 'Tactical', 'Physical', 'Mental']
+    values = [player_data['Tech_Score'], player_data['Tact_Score'], 
+              player_data['Phys_Score'], player_data['Ment_Score']]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatterpolar(r=values, theta=categories, fill='toself', name=selected_player))
+    fig.update_layout(polar=dict(radialaxis=dict(visible=True, range=[0, 100])), showlegend=False)
+    
+    col1, col2 = st.columns([1, 1])
+    with col1:
+        st.metric("Total TPI", f"{player_data['TPI']:.1f}")
+        st.plotly_chart(fig, use_container_width=True)
+        
+    with col2:
+        st.write("### Scouting Summary")
+        st.write(f"This report evaluates **{selected_player}** based on Rwanda Premier League standards.")
+        
+        # PDF Generation Button
+        try:
+            # Generate the image bytes first
+            img_bytes = fig.to_image(format="png", engine="kaleido")
+            
+            if st.button("Generate Professional PDF"):
+                pdf_output = generate_pdf_report(player_data, img_bytes)
+                st.download_button(
+                    label="⬇️ Download PDF Report",
+                    data=pdf_output,
+                    file_name=f"{selected_player}_Scouting_Report.pdf",
+                    mime="application/pdf"
+                )
+                st.balloons()
+        except Exception as e:
+            st.error("The PDF engine is warming up. Please refresh the page in 30 seconds.")
+            st.info("Technical Note: Ensure 'kaleido==0.2.1' is in your requirements.txt")
+
+else:
+    st.info("Welcome! Please upload a CSV file in the sidebar to begin analysis.")
