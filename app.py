@@ -111,3 +111,24 @@ if uploaded_file:
 
 else:
     st.info("Welcome! Please upload a CSV file in the sidebar to begin analysis.")
+
+# --- ADD TO YOUR UI SECTION ---
+st.sidebar.subheader("Comparison Mode")
+compare_mode = st.sidebar.checkbox("Enable Player Comparison")
+
+if compare_mode:
+    player_b_name = st.sidebar.selectbox("Select Player B", df['player_name'].unique(), index=1)
+    player_b_data = df[df['player_name'] == player_b_name].iloc[0]
+    
+    # Add Player B to the Radar Chart
+    values_b = [player_b_data['Tech_Score'], player_b_data['Tact_Score'], 
+                player_b_data['Phys_Score'], player_b_data['Ment_Score']]
+    
+    fig.add_trace(go.Scatterpolar(
+        r=values_b, 
+        theta=categories, 
+        fill='toself', 
+        name=player_b_name,
+        line_color='red' # You can set this to rival club colors!
+    ))
+    fig.update_layout(showlegend=True)
