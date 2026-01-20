@@ -124,3 +124,59 @@ if uploaded_file:
 
 else:
     st.info("Please upload a CSV file to begin.")
+
+# --- NEW: SQUAD HEALTH LOGIC ---
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    df = calculate_analytics(df)
+    
+    # Create Tabs for different views
+    tab1, tab2 = st.tabs(["Individual Analysis", "Squad Health View"])
+
+    with tab1:
+        # (Keep your existing Player Comparison and Bar Chart code here)
+        st.write("Use this tab for detailed scouting and comparisons.")
+
+    with tab2:
+        st.header("📋 Squad Strategic Overview")
+        
+        # 1. SQUAD TALENT MAP (Efficiency vs. Impact)
+        st.subheader("Squad Performance Distribution")
+        fig_scatter = go.Figure()
+        fig_scatter.add_trace(go.Scatter(
+            x=df['Phys_Score'], 
+            y=df['TPI'],
+            mode='markers+text',
+            text=df['player_name'],
+            textposition="top center",
+            marker=dict(size=12, color=df['TPI'], colorscale='Viridis', showscale=True)
+        ))
+        fig_scatter.update_layout(
+            title="Physical Output vs. Total Impact",
+            xaxis_title="Physical Score (Stamina/Speed)",
+            yaxis_title="Total Performance Index (TPI)"
+        )
+        st.plotly_chart(fig_scatter, use_container_width=True)
+
+        # 2. INJURY RISK / FATIGUE MONITOR
+        st.subheader("⚠️ Physical Readiness & Injury Risk")
+        
+        # Define a 'Risk' threshold (e.g., players with Physical Score < 50)
+        risk_df = df[df['Phys_Score'] < 60].sort_values(by='Phys_Score')
+        
+        if not risk_df.empty:
+            cols = st.columns(len(risk_df))
+            for i, row in enumerate(risk_df.iterrows()):
+                player = row[1]
+                with cols[i % 3]:
+                    st.warning(f"**{player['player_name']}**")
+                    st.caption(f"Physical: {player['Phys_Score']:.1f}")
+                    st.progress(player['Phys_Score'] / 100)
+        else:
+            st.success("All players are currently meeting the physical baseline.")
+
+        # 3. POSITION DENSITY
+        st.subheader("Squad Depth Analysis")
+        pos_counts = df['position'].value_counts()
+        fig_pie = go.Figure(data=[go.Pie(labels=pos_counts.index, values=pos_counts.values, hole=.3)])
+        st.plotly_chart(fig_pie)
