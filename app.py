@@ -3,17 +3,11 @@ import pandas as pd
 import plotly.graph_objects as go
 from fpdf import FPDF
 import io
-import os
 
-# --- 1. SETTINGS & UI ---
+# --- 1. SETTINGS ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
 
-# Debugging: Allow us to see errors clearly
-import sys
-def catch_error():
-    err_type, err_obj, traceback = sys.exc_info()
-    return f"Error: {err_obj} at line {traceback.tb_lineno}"
-
+# Modern Dark Theme Styling
 st.markdown("""
     <style>
     .main { background-color: #0B0C10; color: #C5C6C7; }
@@ -44,31 +38,38 @@ def calculate_analytics(df):
         elite_stats = top_5[['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score']].mean()
     except:
         elite_stats = pd.Series([75, 75, 75, 75], index=['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score'])
-        
     return df, elite_stats
 
-# --- 2. EXECUTIVE PDF ENGINE ---
-class RPL_Executive_Report(FPDF):
-    def header(self):
-        self.set_fill_color(11, 12, 16)
-        self.rect(0, 0, 210, 35, 'F')
-        self.set_font('Arial', 'B', 18)
-        self.set_text_color(102, 252, 241)
-        self.cell(0, 15, 'RPL SCOUTING: EXECUTIVE SUMMARY', ln=True, align='C')
-        self.ln(20)
-
-def generate_pdf(p1, img_bytes):
-    pdf = RPL_Executive_Report()
+# --- 2. EXECUTIVE PDF ENGINE (Using fpdf2) ---
+def generate_pdf(p1, img_bytes=None):
+    pdf = FPDF()
     pdf.add_page()
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Arial', 'B', 14)
-    pdf.cell(0, 10, f"PLAYER ANALYSIS: {p1['player_name']}", ln=True)
     
-    # Save the bytes to a local file for FPDF
-    with open("temp_exec.png", "wb") as f:
-        f.write(img_bytes)
-    pdf.image("temp_exec.png", x=10, y=60, w=190)
-    return pdf.output(dest='S').encode('latin-1')
+    # Header Branding
+    pdf.set_fill_color(11, 12, 16)
+    pdf.rect(0, 0, 210, 40, 'F')
+    pdf.set_font('helvetica', 'B', 20)
+    pdf.set_text_color(102, 252, 241) # Cyan
+    pdf.cell(0, 20, 'RPL SCOUTING: EXECUTIVE SUMMARY', center=True, new_x="LMARGIN", new_y="NEXT", align='C')
+    
+    pdf.ln(25)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font('helvetica', 'B', 14)
+    pdf.cell(0, 10, f"PLAYER ANALYSIS: {p1['player_name']}", new_x="LMARGIN", new_y="NEXT")
+    
+    # Performance Table
+    pdf.set_font('helvetica', '', 12)
+    for m in ['Technical', 'Tactical', 'Physical', 'Mental', 'TPI']:
+        key = f"{m[:4]}_Score" if m != 'TPI' else 'TPI'
+        pdf.cell(50, 10, f"{m}:", border=1)
+        pdf.cell(50, 10, f"{p1[key]:.1f}", border=1, new_x="LMARGIN", new_y="NEXT")
+    
+    # Add Image if available
+    if img_bytes:
+        img_buffer = io.BytesIO(img_bytes)
+        pdf.image(img_buffer, x=10, y=110, w=190)
+    
+    return pdf.output()
 
 # --- 3. DASHBOARD UI ---
 st.sidebar.title("💎 RPL ELITE")
@@ -77,10 +78,6 @@ uploaded_file = st.sidebar.file_uploader("UPLOAD MATCH DATA (CSV)", type="csv")
 if uploaded_file:
     try:
         raw_df = pd.read_csv(uploaded_file)
-        if 'player_name' not in raw_df.columns:
-            st.error("Missing 'player_name' column!")
-            st.stop()
-            
         df, elite_stats = calculate_analytics(raw_df)
         
         tab_ind, tab_bench, tab_sqd = st.tabs(["👤 PLAYER PROFILE", "📊 ELITE BENCHMARK", "📋 SQUAD STRATEGY"])
@@ -95,6 +92,7 @@ if uploaded_file:
             c3.metric("PHYSICAL", f"{p1_data['Phys_Score']:.1f}")
             c4.metric("TACTICAL", f"{p1_data['Tact_Score']:.1f}")
 
+            # Main Chart
             categories = ['Technical', 'Tactical', 'Physical', 'Mental']
             fig = go.Figure()
             fig.add_trace(go.Bar(
@@ -107,39 +105,30 @@ if uploaded_file:
         with tab_bench:
             st.subheader("Comparison vs. League Elite (Top 5 Avg)")
             fig_bench = go.Figure()
-            fig_bench.add_trace(go.Bar(
-                y=categories, x=[p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']],
-                orientation='h', name=p1_name, marker_color='#66FCF1'
-            ))
-            fig_bench.add_trace(go.Bar(
-                y=categories, x=elite_stats.values,
-                orientation='h', name="League Elite", marker_color='#45A29E'
-            ))
+            fig_bench.add_trace(go.Bar(y=categories, x=[p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']], orientation='h', name=p1_name, marker_color='#66FCF1'))
+            fig_bench.add_trace(go.Bar(y=categories, x=elite_stats.values, orientation='h', name="League Elite", marker_color='#45A29E'))
             fig_bench.update_layout(template="plotly_dark", barmode='group', paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_bench, use_container_width=True)
             
             if st.button("DOWNLOAD EXECUTIVE REPORT"):
                 try:
-                    # FORCING KALEIDO TO USE SCOPE
-                    import kaleido
-                    img_bytes = fig_bench.to_image(format="png", engine="kaleido")
-                    pdf_bytes = generate_pdf(p1_data, img_bytes)
-                    st.download_button("📥 DOWNLOAD PDF", pdf_bytes, f"{p1_name}_Elite.pdf")
-                except Exception:
-                    st.error(catch_error())
-                    st.warning("Note: If you see a 'Kaleido' error, try clicking the button again in 10 seconds.")
+                    # Attempt image export
+                    img_bytes = fig_bench.to_image(format="png")
+                    pdf_data = generate_pdf(p1_data, img_bytes)
+                    st.download_button("📥 DOWNLOAD PDF", pdf_data, f"{p1_name}_Elite.pdf", "application/pdf")
+                except Exception as e:
+                    # Fallback to text-only PDF if Kaleido fails
+                    st.warning("Visual engine busy. Generating text-only report...")
+                    pdf_data = generate_pdf(p1_data)
+                    st.download_button("📥 DOWNLOAD TEXT REPORT", pdf_data, f"{p1_name}_Report.pdf", "application/pdf")
 
         with tab_sqd:
             st.subheader("SQUAD HEALTH MAP")
-            fig_sq = go.Figure(data=go.Scatter(
-                x=df['Phys_Score'], y=df['TPI'], mode='markers+text',
-                text=df['player_name'], marker=dict(size=15, color='#66FCF1')
-            ))
+            fig_sq = go.Figure(data=go.Scatter(x=df['Phys_Score'], y=df['TPI'], mode='markers+text', text=df['player_name'], marker=dict(size=15, color='#66FCF1')))
             fig_sq.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_sq, use_container_width=True)
 
-    except Exception:
-        st.error(catch_error())
-
+    except Exception as e:
+        st.error(f"System Error: {e}")
 else:
     st.info("System Ready. Please upload CSV Match Data.")
