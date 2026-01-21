@@ -7,7 +7,7 @@ import io
 # --- 1. SETTINGS & VISIBLE UI ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
 
-# Theme: High-Visibility Professional (Light main area, slate sidebar)
+# Theme: High-Visibility Professional
 st.markdown("""
     <style>
     .main { background-color: #FFFFFF; color: #212529; }
@@ -44,91 +44,70 @@ def calculate_analytics(df):
 def generate_pdf(p1, p2=None, chart_bytes=None, compare_mode=False):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Header
     pdf.set_fill_color(33, 37, 41) 
     pdf.rect(0, 0, 210, 40, 'F')
     pdf.set_font('Arial', 'B', 20)
     pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 20, 'RPL SCOUTING EXECUTIVE REPORT', align='C', ln=True)
-    
     pdf.ln(25)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font('Arial', 'B', 14)
     title = f"ANALYSIS: {p1['player_name']} vs {p2['player_name']}" if compare_mode else f"ANALYSIS: {p1['player_name']}"
     pdf.cell(0, 10, title, ln=True)
-    
-    # Comparison Table
     pdf.ln(5)
-    pdf.set_font('Arial', 'B', 12)
-    pdf.set_fill_color(233, 236, 239)
+    pdf.set_font('Arial', 'B', 12); pdf.set_fill_color(233, 236, 239)
     pdf.cell(50, 10, "Metric", 1, 0, 'C', True)
     pdf.cell(50, 10, p1['player_name'], 1, 0, 'C', True)
-    if compare_mode:
-        pdf.cell(50, 10, p2['player_name'], 1, 0, 'C', True)
+    if compare_mode: pdf.cell(50, 10, p2['player_name'], 1, 0, 'C', True)
     pdf.ln()
-    
     pdf.set_font('Arial', '', 11)
     for m in ['Technical', 'Tactical', 'Physical', 'Mental', 'TPI']:
         key = f"{m[:4]}_Score" if m != 'TPI' else 'TPI'
-        pdf.cell(50, 10, m, 1)
-        pdf.cell(50, 10, f"{p1[key]:.1f}", 1, 0, 'C')
-        if compare_mode:
-            pdf.cell(50, 10, f"{p2[key]:.1f}", 1, 0, 'C')
+        pdf.cell(50, 10, m, 1); pdf.cell(50, 10, f"{p1[key]:.1f}", 1, 0, 'C')
+        if compare_mode: pdf.cell(50, 10, f"{p2[key]:.1f}", 1, 0, 'C')
         pdf.ln()
-    
     if chart_bytes:
-        with open("temp_report.png", "wb") as f:
-            f.write(chart_bytes)
+        with open("temp_report.png", "wb") as f: f.write(chart_bytes)
         pdf.image("temp_report.png", x=10, y=120, w=190)
-    
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. DASHBOARD MAIN INTERFACE ---
+# --- 3. DASHBOARD ---
 st.sidebar.title("💎 RPL ELITE")
 uploaded_file = st.sidebar.file_uploader("UPLOAD DATASET (CSV)", type="csv")
 
 if uploaded_file:
     raw_df = pd.read_csv(uploaded_file)
     df, elite_stats = calculate_analytics(raw_df)
-    
     tab_ind, tab_bench, tab_sqd = st.tabs(["👤 INDIVIDUAL ANALYSIS", "📊 ELITE BENCHMARK", "📋 SQUAD HEALTH"])
 
     with tab_ind:
         col_ctrl1, col_ctrl2 = st.columns(2)
-        with col_ctrl1:
-            p1_name = st.selectbox("PRIMARY PLAYER", df['player_name'].unique(), key="p1_sel")
-        with col_ctrl2:
-            compare_mode = st.checkbox("ENABLE PLAYER COMPARISON", key="comp_toggle")
+        with col_ctrl1: p1_name = st.selectbox("PRIMARY PLAYER", df['player_name'].unique(), key="p1_sel")
+        with col_ctrl2: compare_mode = st.checkbox("ENABLE PLAYER COMPARISON", key="comp_toggle")
         
         p1_data = df[df['player_name'] == p1_name].iloc[0]
-        p2_data = None
-        
         categories = ['Technical', 'Tactical', 'Physical', 'Mental']
         fig = go.Figure()
         fig.add_trace(go.Bar(y=categories, x=[p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']], orientation='h', name=p1_name, marker_color='#212529'))
 
+        p2_data = None
         if compare_mode:
             p2_name = st.selectbox("COMPARISON PLAYER", df['player_name'].unique(), index=1, key="p2_sel")
             p2_data = df[df['player_name'] == p2_name].iloc[0]
             fig.add_trace(go.Bar(y=categories, x=[p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']], orientation='h', name=p2_name, marker_color='#D00000'))
 
         fig.update_layout(barmode='group', xaxis_range=[0,100], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        
-        col_chart, col_stats = st.columns([2, 1])
-        with col_chart:
-            st.plotly_chart(fig, use_container_width=True)
-        with col_stats:
+        c_chart, c_stats = st.columns([2, 1])
+        with c_chart: st.plotly_chart(fig, use_container_width=True)
+        with c_stats:
             st.metric(f"{p1_name} TPI", f"{p1_data['TPI']:.1f}")
             if compare_mode: st.metric(f"{p2_name} TPI", f"{p2_data['TPI']:.1f}", delta=f"{p2_data['TPI'] - p1_data['TPI']:.1f}")
-            
             if st.button("📄 GENERATE PDF REPORT"):
                 try:
                     img_bytes = fig.to_image(format="png", engine="kaleido")
                     pdf_data = generate_pdf(p1_data, p2_data, img_bytes, compare_mode)
                     st.download_button("📥 DOWNLOAD REPORT", pdf_data, f"{p1_name}_Report.pdf", "application/pdf")
-                except:
-                    st.warning("Visual engine initializing. Please try clicking again.")
+                except: st.warning("Engine initializing...")
 
     with tab_bench:
         st.subheader("Comparison vs. League Elite (Top 5 Average)")
@@ -144,8 +123,17 @@ if uploaded_file:
         fig_sq.update_layout(title="Talent Map", xaxis_title="Physical Condition", yaxis_title="TPI Index")
         st.plotly_chart(fig_sq, use_container_width=True)
         
+        # RESTORED: INJURY / FATIGUE NOTIFICATIONS
+        st.subheader("⚠️ Medical & Fatigue Alerts")
+        low_phys = df[df['Phys_Score'] < 65]
+        if not low_phys.empty:
+            for _, p in low_phys.iterrows():
+                st.error(f"**Injury Risk Alert:** {p['player_name']} has a physical score of {p['Phys_Score']:.1f}. Recommend immediate rest or reduced training load.")
+        else:
+            st.success("All players are currently meeting the physical readiness threshold.")
+        
         with st.expander("🔍 Talent Map Legend"):
-            st.write("🎯 **Top-Right (Elite):** Best players. 🧠 **Top-Left (Geniuses):** High impact, low fitness. 🏃 **Bottom-Right (Workhorses):** Fit, but need training.")
+            st.write("🎯 **Top-Right (Elite):** Best performers. 🧠 **Top-Left (Geniuses):** Technical but low fitness. 🏃 **Bottom-Right (Workhorses):** Fit, but need technical coaching.")
 
 else:
     st.info("System Ready. Please upload CSV data in the sidebar.")
