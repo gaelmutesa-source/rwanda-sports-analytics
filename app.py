@@ -4,10 +4,10 @@ import plotly.graph_objects as go
 from fpdf import FPDF
 import io
 
-# --- 1. SETTINGS ---
+# --- 1. SETTINGS & UI ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
 
-# Modern Dark Theme Styling
+# Corrected Styling - Changed 'unsafe_allow_index' to 'unsafe_allow_html'
 st.markdown("""
     <style>
     .main { background-color: #0B0C10; color: #C5C6C7; }
@@ -16,9 +16,10 @@ st.markdown("""
     .stTabs [data-baseweb="tab-list"] { background-color: #1F2833; border-radius: 8px; }
     h1, h2, h3 { color: #66FCF1 !important; }
     </style>
-    """, unsafe_allow_index=True)
+    """, unsafe_allow_html=True)
 
 def calculate_analytics(df):
+    # Weighting: Tech (35%), Tact (25%), Phys (25%), Ment (15%)
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
     df_numeric = df.select_dtypes(include=['number'])
     df[df_numeric.columns] = df_numeric.fillna(df_numeric.median())
@@ -40,7 +41,7 @@ def calculate_analytics(df):
         elite_stats = pd.Series([75, 75, 75, 75], index=['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score'])
     return df, elite_stats
 
-# --- 2. EXECUTIVE PDF ENGINE (Using fpdf2) ---
+# --- 2. EXECUTIVE PDF ENGINE ---
 def generate_pdf(p1, img_bytes=None):
     pdf = FPDF()
     pdf.add_page()
@@ -49,22 +50,21 @@ def generate_pdf(p1, img_bytes=None):
     pdf.set_fill_color(11, 12, 16)
     pdf.rect(0, 0, 210, 40, 'F')
     pdf.set_font('helvetica', 'B', 20)
-    pdf.set_text_color(102, 252, 241) # Cyan
-    pdf.cell(0, 20, 'RPL SCOUTING: EXECUTIVE SUMMARY', center=True, new_x="LMARGIN", new_y="NEXT", align='C')
+    pdf.set_text_color(102, 252, 241) 
+    pdf.cell(0, 20, 'RPL SCOUTING: EXECUTIVE SUMMARY', align='C')
     
-    pdf.ln(25)
+    pdf.ln(30)
     pdf.set_text_color(0, 0, 0)
     pdf.set_font('helvetica', 'B', 14)
-    pdf.cell(0, 10, f"PLAYER ANALYSIS: {p1['player_name']}", new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 10, f"PLAYER ANALYSIS: {p1['player_name']}", ln=True)
     
-    # Performance Table
+    pdf.ln(5)
     pdf.set_font('helvetica', '', 12)
     for m in ['Technical', 'Tactical', 'Physical', 'Mental', 'TPI']:
         key = f"{m[:4]}_Score" if m != 'TPI' else 'TPI'
         pdf.cell(50, 10, f"{m}:", border=1)
-        pdf.cell(50, 10, f"{p1[key]:.1f}", border=1, new_x="LMARGIN", new_y="NEXT")
+        pdf.cell(50, 10, f"{p1[key]:.1f}", border=1, ln=True)
     
-    # Add Image if available
     if img_bytes:
         img_buffer = io.BytesIO(img_bytes)
         pdf.image(img_buffer, x=10, y=110, w=190)
@@ -92,7 +92,6 @@ if uploaded_file:
             c3.metric("PHYSICAL", f"{p1_data['Phys_Score']:.1f}")
             c4.metric("TACTICAL", f"{p1_data['Tact_Score']:.1f}")
 
-            # Main Chart
             categories = ['Technical', 'Tactical', 'Physical', 'Mental']
             fig = go.Figure()
             fig.add_trace(go.Bar(
@@ -112,13 +111,11 @@ if uploaded_file:
             
             if st.button("DOWNLOAD EXECUTIVE REPORT"):
                 try:
-                    # Attempt image export
                     img_bytes = fig_bench.to_image(format="png")
                     pdf_data = generate_pdf(p1_data, img_bytes)
                     st.download_button("📥 DOWNLOAD PDF", pdf_data, f"{p1_name}_Elite.pdf", "application/pdf")
-                except Exception as e:
-                    # Fallback to text-only PDF if Kaleido fails
-                    st.warning("Visual engine busy. Generating text-only report...")
+                except:
+                    st.warning("Visual engine busy. Generating text report...")
                     pdf_data = generate_pdf(p1_data)
                     st.download_button("📥 DOWNLOAD TEXT REPORT", pdf_data, f"{p1_name}_Report.pdf", "application/pdf")
 
