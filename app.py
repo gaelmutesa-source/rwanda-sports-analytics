@@ -3,9 +3,16 @@ import pandas as pd
 import plotly.graph_objects as go
 from fpdf import FPDF
 import io
+import os
 
 # --- 1. SETTINGS & UI ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
+
+# Debugging: Allow us to see errors clearly
+import sys
+def catch_error():
+    err_type, err_obj, traceback = sys.exc_info()
+    return f"Error: {err_obj} at line {traceback.tb_lineno}"
 
 st.markdown("""
     <style>
@@ -19,12 +26,9 @@ st.markdown("""
 
 def calculate_analytics(df):
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
-    
-    # 1. Ensure numeric columns exist and handle missing values
     df_numeric = df.select_dtypes(include=['number'])
     df[df_numeric.columns] = df_numeric.fillna(df_numeric.median())
     
-    # 2. Safety Check for Pillar Formulas
     df['Tech_Score'] = df.get('pass_accuracy', 50) * 0.6 + df.get('dribble_success', 50) * 0.4
     df['Tact_Score'] = (df.get('interceptions', 5) * 5) + (df.get('positioning_rating', 50) * 0.5)
     df['Phys_Score'] = (df.get('sprint_speed', 25) * 2) + (df.get('stamina', 50) * 0.2)
@@ -35,12 +39,10 @@ def calculate_analytics(df):
                  df['Phys_Score'] * weights['Physical'] + 
                  df['Ment_Score'] * weights['Mental'])
     
-    # 3. Safe League Elite Calculation
     try:
         top_5 = df.nlargest(5, 'TPI')
         elite_stats = top_5[['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score']].mean()
-    except Exception:
-        # Fallback if league is too small
+    except:
         elite_stats = pd.Series([75, 75, 75, 75], index=['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score'])
         
     return df, elite_stats
@@ -50,19 +52,21 @@ class RPL_Executive_Report(FPDF):
     def header(self):
         self.set_fill_color(11, 12, 16)
         self.rect(0, 0, 210, 35, 'F')
-        self.set_font('Arial', 'B', 20)
+        self.set_font('Arial', 'B', 18)
         self.set_text_color(102, 252, 241)
         self.cell(0, 15, 'RPL SCOUTING: EXECUTIVE SUMMARY', ln=True, align='C')
         self.ln(20)
 
-def generate_pdf(p1, chart_bytes):
+def generate_pdf(p1, img_bytes):
     pdf = RPL_Executive_Report()
     pdf.add_page()
     pdf.set_text_color(0, 0, 0)
     pdf.set_font('Arial', 'B', 14)
     pdf.cell(0, 10, f"PLAYER ANALYSIS: {p1['player_name']}", ln=True)
     
-    with open("temp_exec.png", "wb") as f: f.write(chart_bytes)
+    # Save the bytes to a local file for FPDF
+    with open("temp_exec.png", "wb") as f:
+        f.write(img_bytes)
     pdf.image("temp_exec.png", x=10, y=60, w=190)
     return pdf.output(dest='S').encode('latin-1')
 
@@ -73,9 +77,8 @@ uploaded_file = st.sidebar.file_uploader("UPLOAD MATCH DATA (CSV)", type="csv")
 if uploaded_file:
     try:
         raw_df = pd.read_csv(uploaded_file)
-        # Ensure 'player_name' column exists
         if 'player_name' not in raw_df.columns:
-            st.error("Missing 'player_name' column in CSV!")
+            st.error("Missing 'player_name' column!")
             st.stop()
             
         df, elite_stats = calculate_analytics(raw_df)
@@ -117,11 +120,14 @@ if uploaded_file:
             
             if st.button("DOWNLOAD EXECUTIVE REPORT"):
                 try:
+                    # FORCING KALEIDO TO USE SCOPE
+                    import kaleido
                     img_bytes = fig_bench.to_image(format="png", engine="kaleido")
                     pdf_bytes = generate_pdf(p1_data, img_bytes)
-                    st.download_button("📥 DOWNLOAD PDF", pdf_bytes, f"{p1_name}_Elite_Report.pdf")
-                except Exception as e:
-                    st.error(f"PDF Error: Ensure Kaleido is installed. Details: {e}")
+                    st.download_button("📥 DOWNLOAD PDF", pdf_bytes, f"{p1_name}_Elite.pdf")
+                except Exception:
+                    st.error(catch_error())
+                    st.warning("Note: If you see a 'Kaleido' error, try clicking the button again in 10 seconds.")
 
         with tab_sqd:
             st.subheader("SQUAD HEALTH MAP")
@@ -132,9 +138,8 @@ if uploaded_file:
             fig_sq.update_layout(template="plotly_dark", paper_bgcolor='rgba(0,0,0,0)')
             st.plotly_chart(fig_sq, use_container_width=True)
 
-    except Exception as e:
-        st.error(f"Critical System Error: {e}")
-        st.info("Please check if your CSV format is correct.")
+    except Exception:
+        st.error(catch_error())
 
 else:
     st.info("System Ready. Please upload CSV Match Data.")
