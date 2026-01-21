@@ -1,6 +1,6 @@
 streamlit
 pandas
-plotly>=6.0.0
-fpdf2
-kaleido
+plotly
+fpdf
+kaleido==0.2.1
 openpyxl
