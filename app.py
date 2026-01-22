@@ -5,7 +5,7 @@ import plotly.express as px
 from fpdf import FPDF
 import io
 
-# --- 1. SETTINGS & UI ---
+# --- 1. UI & STYLING ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
 st.markdown("""
     <style>
@@ -13,8 +13,8 @@ st.markdown("""
     .stMetric { background-color: #F8F9FA; border: 1px solid #DEE2E6; padding: 15px; border-radius: 10px; }
     [data-testid="stSidebar"] { background-color: #F1F3F5; border-right: 1px solid #DEE2E6; }
     .stTabs [data-baseweb="tab-list"] { background-color: #E9ECEF; border-radius: 8px; }
+    .player-card { border: 2px solid #E9ECEF; padding: 20px; border-radius: 15px; background: white; text-align: center; }
     .insight-box { background-color: #E7F3FF; padding: 15px; border-radius: 8px; border-left: 5px solid #007BFF; margin: 10px 0; }
-    .recommendation-box { background-color: #FFF4E5; padding: 15px; border-radius: 8px; border-left: 5px solid #FF8C00; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -33,124 +33,91 @@ def calculate_analytics(df):
     df['TPI'] = (df['Tech_Score']*weights['Technical'] + df['Tact_Score']*weights['Tactical'] + 
                  df['Phys_Score']*weights['Physical'] + df['Ment_Score']*weights['Mental'])
     
-    team_avg = {'Technical': df['Tech_Score'].mean(), 'Tactical': df['Tact_Score'].mean(), 
-                'Physical': df['Phys_Score'].mean(), 'Mental': df['Ment_Score'].mean(), 'TPI': df['TPI'].mean()}
-    return df, team_avg
+    return df, df[['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score']].mean()
 
-# --- 2. THE STABLE PDF ENGINE ---
+# --- 2. EXECUTIVE PDF ENGINE ---
 def generate_pro_pdf(p_data):
     pdf = FPDF()
     pdf.add_page()
     pdf.set_fill_color(13, 27, 42) 
     pdf.rect(0, 0, 210, 45, 'F')
     pdf.set_font('Arial', 'B', 22); pdf.set_text_color(255, 255, 255)
-    pdf.cell(0, 25, 'RPL PERFORMANCE ELITE', align='C', ln=True)
+    pdf.cell(0, 25, 'OFFICIAL SCOUTING DOSSIER', align='C', ln=True)
     pdf.ln(30); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 16)
-    pdf.cell(0, 10, f"PLAYER: {p_data['player_name'].upper()}", ln=True)
+    pdf.cell(0, 10, f"{p_data['player_name'].upper()}", ln=True)
     pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 7, f"Club: {p_data.get('club', 'RPL Club')} | Age: {p_data.get('age', 'N/A')}", ln=True)
-    pdf.cell(0, 7, f"Match Volume: {p_data.get('mins_played', 0)} mins | {p_data.get('distance', 0)} km covered", ln=True)
-    
-    # Scouting Verdict Table
-    pdf.ln(10); pdf.set_fill_color(240, 240, 240)
-    pdf.set_font('Arial', 'B', 10)
-    pdf.cell(60, 10, "Metric", 1, 0, 'C', True); pdf.cell(60, 10, "Value", 1, 1, 'C', True)
-    pdf.set_font('Arial', '', 11)
-    for m in ['Goals', 'Assists', 'pass_accuracy', 'interceptions']:
-        pdf.cell(60, 10, m.replace('_', ' ').title(), 1)
-        pdf.cell(60, 10, str(p_data.get(m, 0)), 1, 1, 'C')
-    
+    pdf.cell(0, 7, f"Club: {p_data.get('club', 'N/A')} | Career Mins: {int(p_data.get('mins_played', 0))} | Value: ${p_data.get('market_value', 0):,}", ln=True)
+    pdf.ln(10)
+    pdf.set_font('Arial', 'B', 12); pdf.cell(0, 10, "Technical Performance Matrix", ln=True)
+    for m in ['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score', 'TPI']:
+        pdf.set_font('Arial', '', 10)
+        pdf.cell(50, 8, m.replace('_', ' '), 1); pdf.cell(30, 8, f"{p_data[m]:.1f}", 1, 1, 'C')
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. MAIN DASHBOARD ---
+# --- 3. MAIN APP ---
 st.sidebar.title("💎 RPL ELITE")
-file = st.sidebar.file_uploader("Upload Match Dataset", type="csv")
+file = st.sidebar.file_uploader("Upload Data", type="csv")
 
 if file:
     df, team_avg = calculate_analytics(pd.read_csv(file))
-    tabs = st.tabs(["👤 Profile", "📊 Performance Analysis", "⚽ Match Day Depth", "📋 Squad Health", "🏋️ Training Optimizer"])
+    tabs = st.tabs(["👤 Elite Profile", "📊 Scouting Ranking", "📋 Squad Health", "⚽ Performance Depth"])
 
-    # --- TAB 1: PROFILE ---
+    # --- TAB 1: ELITE PROFILE ---
     with tabs[0]:
-        p_name = st.selectbox("Select Player", df['player_name'].unique(), key="p_prof")
+        p_name = st.selectbox("Select Player Profile", df['player_name'].unique())
         p_data = df[df['player_name'] == p_name].iloc[0]
-        st.header(f"{p_data['player_name']} | {p_data.get('club', 'RPL Club')}")
         
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Appearances", int(p_data.get('appearances', 0)))
-        c2.metric("Market Value", f"${p_data.get('market_value', 0):,}")
-        c3.metric("TPI Score", f"{p_data['TPI']:.1f}")
+        st.markdown('<div class="player-card">', unsafe_allow_html=True)
+        c1, c2 = st.columns([1, 2])
+        with c1:
+            if p_data.get('photo_url'): st.image(p_data['photo_url'], width=200)
+            else: st.image("https://via.placeholder.com/200?text=Player+Photo", width=200)
+        with c2:
+            st.header(p_data['player_name'])
+            st.subheader(f"{p_data.get('club')} | {p_data.get('nationality')}")
+            st.write(f"**Total Career Minutes:** {int(p_data.get('mins_played', 0))} mins")
+            st.write(f"**Age:** {int(p_data.get('age', 0))} | **Foot:** {p_data.get('foot')}")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Goals", int(p_data.get('goals', 0)))
+        m2.metric("Assists", int(p_data.get('assists', 0)))
+        m3.metric("Market Value", f"${p_data.get('market_value', 0):,}")
 
-        if st.button("📥 Download Executive PDF"):
+        if st.button("📄 Generate Professional PDF"):
             pdf = generate_pro_pdf(p_data)
-            st.download_button("Confirm PDF Download", pdf, f"{p_name}_Report.pdf", "application/pdf")
+            st.download_button("Download Report", pdf, f"{p_name}_Profile.pdf")
 
-    # --- TAB 2: PERFORMANCE ANALYSIS ---
+    # --- TAB 2: SCOUTING RANKING ---
     with tabs[1]:
-        col1, col2 = st.columns(2)
-        with col1: p1_n = st.selectbox("Primary Player", df['player_name'].unique(), key="p_an")
-        with col2: compare = st.checkbox("Enable Comparison", key="p_comp")
-        
-        p1_d = df[df['player_name'] == p1_n].iloc[0]
-        cats = ['Technical', 'Tactical', 'Physical', 'Mental']
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=cats, y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], name=p1_n, marker_color='#212529'))
-        fig.add_trace(go.Scatter(x=cats, y=[team_avg['Technical'], team_avg['Tactical'], team_avg['Physical'], team_avg['Mental']], mode='lines+markers', name='Team Average', line=dict(color='#007BFF', dash='dash')))
-        
-        if compare:
-            p2_n = st.selectbox("Compare With", df['player_name'].unique(), index=1, key="p_an2")
-            p2_d = df[df['player_name'] == p2_n].iloc[0]
-            fig.add_trace(go.Bar(x=cats, y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], name=p2_n, marker_color='#D00000'))
-        
-        fig.update_layout(title="Pillar Benchmarking", yaxis_title="Competency %")
-        st.plotly_chart(fig, use_container_width=True)
+        st.subheader("Global Squad Ranking")
+        sort_by = st.selectbox("Rank By Metric", ["atk_contribution", "def_contribution", "TPI", "mins_played"])
+        ranked_df = df[['player_name', 'position', 'market_value', sort_by]].sort_values(by=sort_by, ascending=False)
+        st.table(ranked_df)
 
-    # --- TAB 3: MATCH DAY DEPTH ---
+    # --- TAB 3: SQUAD HEALTH (INJURY ALERTS) ---
     with tabs[2]:
-        p_match = st.selectbox("Detailed Match Performance", df['player_name'].unique(), key="p_match")
-        m_d = df[df['player_name'] == p_match].iloc[0]
+        st.header("⚠️ Medical Readiness & Decision Support")
+        low_phys = df[df['Phys_Score'] < 65]
+        if not low_phys.empty:
+            for _, p in low_phys.iterrows():
+                st.error(f"**CRITICAL INJURY RISK:** {p['player_name']} is below 65% readiness. Cumulative minutes ({int(p['mins_played'])}) suggest extreme fatigue.")
+        else: st.success("No players currently at risk.")
         
-        # Volume Metrics
-        v1, v2, v3, v4 = st.columns(4)
-        v1.metric("Minutes Played", f"{int(m_d.get('mins_played', 0))} min")
-        v2.metric("Passes Completed", int(m_d.get('passes_completed', 0)))
-        v3.metric("Accuracy Rate", f"{m_d['pass_accuracy']}%")
-        v4.metric("Interceptions", int(m_d.get('interceptions', 0)))
-        
-        # Phase Contribution Chart
-        st.subheader("Phase Contribution (Defensive vs. Attacking)")
-        fig_phase = go.Figure(go.Bar(
-            x=['Defensive Contribution', 'Attacking Contribution'],
-            y=[m_d.get('def_contribution', 50), m_d.get('atk_contribution', 50)],
-            marker_color=['#1B263B', '#C0392B']
-        ))
-        st.plotly_chart(fig_phase, use_container_width=True)
-        
-        st.markdown(f"""<div class="insight-box"><b>Strategic Insight:</b> {p_match} recorded an <b>Attacking Contribution</b> of {m_d.get('atk_contribution', 0)}%. 
-        This suggests they are a primary driver in the final third. Their <b>Accuracy Rate</b> of {m_d['pass_accuracy']}% proves they are reliable under pressure.</div>""", unsafe_allow_html=True)
+        fig_sq = go.Figure(data=go.Scatter(x=df['Phys_Score'], y=df['TPI'], mode='markers+text', text=df['player_name'], marker=dict(size=15, color=df['TPI'], colorscale='Plasma')))
+        fig_sq.update_layout(title="Talent Map (Physical Readiness vs Impact)", xaxis_title="Readiness (%)", yaxis_title="TPI Index")
+        st.plotly_chart(fig_sq, use_container_width=True)
 
-    # --- TAB 4: SQUAD HEALTH ---
+    # --- TAB 4: PERFORMANCE DEPTH ---
     with tabs[3]:
-        st.header("📋 Squad Readiness Index")
-        h_idx = df['Phys_Score'].mean()
-        st.metric("Avg Readiness", f"{h_idx:.1f}%")
+        p_depth = st.selectbox("Deep Performance Analysis", df['player_name'].unique())
+        pd_data = df[df['player_name'] == p_depth].iloc[0]
         
-        low = df[df['Phys_Score'] < 65]
-        for _, p in low.iterrows(): st.error(f"🚨 **Injury Risk:** {p['player_name']} ({p['Phys_Score']:.1f}%)")
-
-    # --- TAB 5: TRAINING OPTIMIZER ---
-    with tabs[4]:
-        p_train = st.selectbox("Generate Training Plan", df['player_name'].unique(), key="p_train")
-        pt_d = df[df['player_name'] == p_train].iloc[0]
+        st.subheader("Phase Contribution Profile")
+        fig_radial = go.Figure(go.Bar(x=['Attacking Contribution', 'Defensive Contribution'], y=[pd_data['atk_contribution'], pd_data['def_contribution']], marker_color=['#C0392B', '#1B263B']))
+        st.plotly_chart(fig_radial, use_container_width=True)
         
-        scores = {'Technical': pt_d['Tech_Score'], 'Tactical': pt_d['Tact_Score'], 'Physical': pt_d['Phys_Score'], 'Mental': pt_d['Ment_Score']}
-        weakest_pillar = min(scores, key=scores.get)
-        
-        st.subheader(f"Focus Area: {weakest_pillar} Improvement")
-        with st.container():
-            st.markdown(f"""<div class="recommendation-box"><b>Coach's Action Plan for {p_train}:</b>
-            <br>1. <b>Primary Drill:</b> { "Small-sided games for ball retention" if weakest_pillar == 'Technical' else "Video Analysis & Shadow Play" if weakest_pillar == 'Tactical' else "Interval Sprints & Power Loading" if weakest_pillar == 'Physical' else "High-pressure simulation drills" }.
-            <br>2. <b>Expected Outcome:</b> Increase {weakest_pillar} Pillar by 5-10% over the next 4-week microcycle.</div>""", unsafe_allow_html=True)
+        st.markdown(f'<div class="insight-box"><b>Technical Verdict:</b> {p_depth} shows a { "High Defensive" if pd_data["def_contribution"] > 70 else "High Attacking" } profile. Total cumulative passes: {int(pd_data["passes_completed"])}.</div>', unsafe_allow_html=True)
 
 else:
-    st.info("Upload the High-Performance Dataset to begin.")
+    st.info("Upload Career Performance CSV to proceed.")
