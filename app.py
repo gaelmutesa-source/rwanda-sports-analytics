@@ -4,10 +4,9 @@ import plotly.graph_objects as go
 from fpdf import FPDF
 import io
 
-# --- 1. SETTINGS & VISIBLE UI ---
+# --- 1. UI CONFIGURATION ---
 st.set_page_config(page_title="RPL Analytics Elite", layout="wide")
 
-# Theme: High-Visibility Professional (White main area, clearly visible Sidebar)
 st.markdown("""
     <style>
     .main { background-color: #FFFFFF; color: #212529; }
@@ -23,7 +22,6 @@ def calculate_analytics(df):
     df_numeric = df.select_dtypes(include=['number'])
     df[df_numeric.columns] = df_numeric.fillna(df_numeric.median())
     
-    # Pillar Logic (Standardized)
     df['Tech_Score'] = df.get('pass_accuracy', 50) * 0.6 + df.get('dribble_success', 50) * 0.4
     df['Tact_Score'] = (df.get('interceptions', 5) * 5) + (df.get('positioning_rating', 50) * 0.5)
     df['Phys_Score'] = (df.get('sprint_speed', 25) * 2) + (df.get('stamina', 50) * 0.2)
@@ -34,56 +32,37 @@ def calculate_analytics(df):
                  df['Phys_Score'] * weights['Physical'] + 
                  df['Ment_Score'] * weights['Mental'])
     
-    # Elite Benchmarking
     top_5 = df.nlargest(5, 'TPI')
     elite_stats = top_5[['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score']].mean()
-    
     return df, elite_stats
 
-# --- 2. THE STABILIZED PDF ENGINE ---
 def generate_pdf(p1, p2=None, chart_bytes=None, compare_mode=False):
     pdf = FPDF()
     pdf.add_page()
-    
-    # Professional Header
     pdf.set_fill_color(33, 37, 41) 
     pdf.rect(0, 0, 210, 40, 'F')
-    pdf.set_font('Arial', 'B', 20)
-    pdf.set_text_color(255, 255, 255)
+    pdf.set_font('Arial', 'B', 20); pdf.set_text_color(255, 255, 255)
     pdf.cell(0, 20, 'RPL SCOUTING EXECUTIVE REPORT', align='C', ln=True)
-    
-    pdf.ln(25)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font('Arial', 'B', 14)
+    pdf.ln(25); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 14)
     title = f"ANALYSIS: {p1['player_name']} vs {p2['player_name']}" if compare_mode else f"ANALYSIS: {p1['player_name']}"
     pdf.cell(0, 10, title, ln=True)
-    
-    # Data Table
-    pdf.ln(5)
-    pdf.set_font('Arial', 'B', 12); pdf.set_fill_color(233, 236, 239)
-    pdf.cell(50, 10, "Metric", 1, 0, 'C', True)
-    pdf.cell(50, 10, p1['player_name'], 1, 0, 'C', True)
+    pdf.ln(5); pdf.set_font('Arial', 'B', 12); pdf.set_fill_color(233, 236, 239)
+    pdf.cell(50, 10, "Metric", 1, 0, 'C', True); pdf.cell(50, 10, p1['player_name'], 1, 0, 'C', True)
     if compare_mode: pdf.cell(50, 10, p2['player_name'], 1, 0, 'C', True)
-    pdf.ln()
-    
-    pdf.set_font('Arial', '', 11)
+    pdf.ln(); pdf.set_font('Arial', '', 11)
     for m in ['Technical', 'Tactical', 'Physical', 'Mental', 'TPI']:
         key = f"{m[:4]}_Score" if m != 'TPI' else 'TPI'
         pdf.cell(50, 10, m, 1); pdf.cell(50, 10, f"{p1[key]:.1f}", 1, 0, 'C')
         if compare_mode: pdf.cell(50, 10, f"{p2[key]:.1f}", 1, 0, 'C')
         pdf.ln()
-    
-    # Safety fix for images
     if chart_bytes:
-        with open("temp_report.png", "wb") as f:
-            f.write(chart_bytes)
-        pdf.image("temp_report.png", x=10, y=120, w=190)
-    
+        img_buffer = io.BytesIO(chart_bytes)
+        pdf.image(img_buffer, x=10, y=120, w=190)
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 3. MAIN DASHBOARD ---
+# --- UI LOGIC ---
 st.sidebar.title("💎 RPL ELITE")
-uploaded_file = st.sidebar.file_uploader("UPLOAD MATCH DATA (CSV)", type="csv")
+uploaded_file = st.sidebar.file_uploader("UPLOAD DATASET (CSV)", type="csv")
 
 if uploaded_file:
     raw_df = pd.read_csv(uploaded_file)
@@ -92,37 +71,32 @@ if uploaded_file:
 
     with tab_ind:
         col_ctrl1, col_ctrl2 = st.columns(2)
-        with col_ctrl1: p1_name = st.selectbox("PRIMARY PLAYER", df['player_name'].unique(), key="p1_sel")
-        with col_ctrl2: compare_mode = st.checkbox("ENABLE PLAYER COMPARISON", key="comp_toggle")
+        with col_ctrl1: p1_name = st.selectbox("PRIMARY PLAYER", df['player_name'].unique(), key="p1")
+        with col_ctrl2: compare_mode = st.checkbox("ENABLE PLAYER COMPARISON")
         
         p1_data = df[df['player_name'] == p1_name].iloc[0]
         categories = ['Technical', 'Tactical', 'Physical', 'Mental']
-        
         fig = go.Figure()
         fig.add_trace(go.Bar(y=categories, x=[p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']], orientation='h', name=p1_name, marker_color='#212529'))
         
         p2_data = None
         if compare_mode:
-            p2_name = st.selectbox("COMPARISON PLAYER", df['player_name'].unique(), index=1, key="p2_sel")
+            p2_name = st.selectbox("COMPARISON PLAYER", df['player_name'].unique(), index=1, key="p2")
             p2_data = df[df['player_name'] == p2_name].iloc[0]
             fig.add_trace(go.Bar(y=categories, x=[p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']], orientation='h', name=p2_name, marker_color='#D00000'))
 
         fig.update_layout(barmode='group', xaxis_range=[0,100], paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
-        
         c_chart, c_stats = st.columns([2, 1])
         with c_chart: st.plotly_chart(fig, use_container_width=True)
         with c_stats:
             st.metric(f"{p1_name} TPI", f"{p1_data['TPI']:.1f}")
             if compare_mode: st.metric(f"{p2_name} TPI", f"{p2_data['TPI']:.1f}", delta=f"{p2_data['TPI'] - p1_data['TPI']:.1f}")
-            
-            # --- PDF REPORT BUTTON ---
             if st.button("📄 GENERATE PDF REPORT"):
                 try:
                     img_bytes = fig.to_image(format="png", engine="kaleido")
                     pdf_data = generate_pdf(p1_data, p2_data, img_bytes, compare_mode)
-                    st.download_button("📥 DOWNLOAD REPORT", pdf_data, f"{p1_name}_Report.pdf", "application/pdf")
-                except:
-                    st.warning("Visual engine initializing. Please click the button again in 5 seconds.")
+                    st.download_button("📥 DOWNLOAD PDF", pdf_data, f"{p1_name}_Report.pdf", "application/pdf")
+                except Exception as e: st.error(f"Error: {e}")
 
     with tab_bench:
         st.subheader("Comparison vs. League Elite (Top 5 Average)")
@@ -134,18 +108,28 @@ if uploaded_file:
 
     with tab_sqd:
         st.header("📋 Squad Strategic Overview")
+        
+        # Talent Map
         fig_sq = go.Figure(data=go.Scatter(x=df['Phys_Score'], y=df['TPI'], mode='markers+text', text=df['player_name'], textposition="top center", marker=dict(size=14, color=df['TPI'], colorscale='Viridis', showscale=True)))
-        fig_sq.update_layout(title="Talent Map", xaxis_title="Physical Condition", yaxis_title="TPI Index")
         st.plotly_chart(fig_sq, use_container_width=True)
         
-        # --- RESTORED: INJURY & FATIGUE NOTIFICATIONS ---
-        st.subheader("⚠️ Medical & Fatigue Alerts")
-        low_phys = df[df['Phys_Score'] < 65]
-        if not low_phys.empty:
-            for _, p in low_phys.iterrows():
-                st.error(f"**Injury Risk Alert:** {p['player_name']} (Physical: {p['Phys_Score']:.1f}). This player is below the 65% readiness threshold. Recommend immediate rest or rotation.")
-        else:
-            st.success("All players are currently meeting the physical readiness threshold.")
-
-else:
-    st.info("System Ready. Please upload CSV data in the sidebar.")
+        col_depth, col_injury = st.columns(2)
+        
+        with col_depth:
+            st.subheader("📊 Squad Depth Analysis")
+            if 'position' in df.columns:
+                pos_counts = df['position'].value_counts()
+                fig_pie = go.Figure(data=[go.Pie(labels=pos_counts.index, values=pos_counts.values, hole=.3)])
+                fig_pie.update_layout(showlegend=True, margin=dict(t=0, b=0, l=0, r=0))
+                st.plotly_chart(fig_pie, use_container_width=True)
+            else:
+                st.warning("Position column not found for depth analysis.")
+        
+        with col_injury:
+            st.subheader("⚠️ Medical & Fatigue Alerts")
+            low_phys = df[df['Phys_Score'] < 65]
+            if not low_phys.empty:
+                for _, p in low_phys.iterrows():
+                    st.error(f"**Risk:** {p['player_name']} - Physical: {p['Phys_Score']:.1f}. Recommend Rest.")
+            else:
+                st.success("All players meet physical readiness thresholds.")
