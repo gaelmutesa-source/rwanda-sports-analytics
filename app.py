@@ -20,11 +20,15 @@ st.markdown("""
 
 def calculate_analytics(df):
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
-    numeric_cols = ['pass_accuracy', 'dribble_success', 'interceptions', 'positioning_rating', 
-                    'sprint_speed', 'stamina', 'composure', 'big_game_impact', 'market_value', 'age', 'contract_end_year']
-    for col in numeric_cols:
-        if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
+    # Numeric conversion for all strategy-critical columns
+    cols = ['pass_accuracy', 'dribble_success', 'interceptions', 'positioning_rating', 
+            'sprint_speed', 'stamina', 'composure', 'big_game_impact', 'market_value', 
+            'age', 'contract_end_year', 'mins_played', 'Transfer_Prob']
+    for col in cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
     
+    # Core Pillars
     df['Tech_Score'] = df['pass_accuracy'] * 0.6 + df['dribble_success'] * 0.4
     df['Tact_Score'] = (df['interceptions'] * 5) + (df['positioning_rating'] * 0.5)
     df['Phys_Score'] = (df['sprint_speed'] * 2) + (df['stamina'] * 0.2)
@@ -32,11 +36,10 @@ def calculate_analytics(df):
     df['TPI'] = (df['Tech_Score']*weights['Technical'] + df['Tact_Score']*weights['Tactical'] + 
                  df['Phys_Score']*weights['Physical'] + df['Ment_Score']*weights['Mental'])
     
-    df['Transfer_Prob'] = ((df['TPI'] * 0.6) + (35 - df['age']) * 2) / 100
-    df['Transfer_Prob'] = df['Transfer_Prob'].clip(0, 0.95)
+    # Recalculate Transfer Prob and Contract Years
+    df['Transfer_Prob'] = (((df['TPI'] * 0.6) + (35 - df['age']) * 2) / 100).clip(0, 0.95)
     df['Years_Left'] = df['contract_end_year'] - 2026
     
-    # CALCULATE TEAM AVERAGES
     team_avg = {
         'Technical': df['Tech_Score'].mean(),
         'Tactical': df['Tact_Score'].mean(),
@@ -56,7 +59,7 @@ def generate_pro_pdf(p_data):
     pdf.ln(30); pdf.set_text_color(0, 0, 0); pdf.set_font('Arial', 'B', 16)
     pdf.cell(0, 10, p_data['player_name'].upper(), ln=True)
     pdf.set_font('Arial', '', 11)
-    pdf.cell(0, 7, f"Club: {p_data.get('club')} | Market Value: ${int(p_data['market_value']):,}", ln=True)
+    pdf.cell(0, 7, f"Club: {p_data.get('club')} | Valuation: ${int(p_data['market_value']):,}", ln=True)
     pdf.cell(0, 7, f"TPI Score: {p_data['TPI']:.1f} | Contract Ends: {int(p_data['contract_end_year'])}", ln=True)
     return pdf.output(dest='S').encode('latin-1')
 
@@ -94,50 +97,60 @@ if file:
         
         p1_data = df[df['player_name'] == p1_name].iloc[0]
         cats = ['Technical', 'Tactical', 'Physical', 'Mental']
-        scores1 = [p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']]
         
         fig = go.Figure()
-        
-        # Primary Player Bars
-        fig.add_trace(go.Bar(x=cats, y=scores1, name=p1_name, marker_color='#212529'))
+        fig.add_trace(go.Bar(x=cats, y=[p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']], name=p1_name, marker_color='#212529'))
         
         if compare_on:
             p2_name = st.selectbox("Compare With", df['player_name'].unique(), index=1, key="comp_p2")
             p2_data = df[df['player_name'] == p2_name].iloc[0]
-            scores2 = [p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']]
-            # Secondary Player Bars
-            fig.add_trace(go.Bar(x=cats, y=scores2, name=p2_name, marker_color='#D00000'))
+            fig.add_trace(go.Bar(x=cats, y=[p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']], name=p2_name, marker_color='#D00000'))
         
-        # TEAM AVERAGE LINE - Forced to render on top with high contrast
-        team_vals = [team_avg['Technical'], team_avg['Tactical'], team_avg['Physical'], team_avg['Mental']]
+        # VISIBILITY FIX: Added Team Average as a High-Visibility Line Overlaid on Bars
         fig.add_trace(go.Scatter(
             x=cats, 
-            y=team_vals, 
+            y=[team_avg['Technical'], team_avg['Tactical'], team_avg['Physical'], team_avg['Mental']], 
             mode='lines+markers', 
             name='Team Average', 
             line=dict(color='#007BFF', width=4, dash='dash'),
-            marker=dict(size=10, symbol='diamond')
+            marker=dict(size=12, symbol='x')
         ))
         
-        fig.update_layout(
-            yaxis_range=[0,105], 
-            title=f"Performance Benchmarking: {p1_name} vs Squad Average",
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
-        )
+        fig.update_layout(yaxis_range=[0,105], title="Benchmarking vs Squad Standard")
         st.plotly_chart(fig, use_container_width=True)
 
+    # --- TAB 3: SQUAD HEALTH ---
     with tabs[2]:
-        st.header("Medical Readiness Alerts")
+        st.header("⚠️ Medical Readiness Index")
         low = df[df['Phys_Score'] < 65]
         if not low.empty:
             for _, p in low.iterrows(): st.error(f"🚨 **Injury Risk:** {p['player_name']} ({p['Phys_Score']:.1f}%)")
         else: st.success("All players fit.")
+        
+        fig_sq = px.scatter(df, x="Phys_Score", y="TPI", text="player_name", color="TPI", title="Talent Map")
+        st.plotly_chart(fig_sq, use_container_width=True)
 
+    # --- TAB 4: TRANSFER WAR ROOM (RESTORED SCATTER GRAPH) ---
     with tabs[3]:
-        st.subheader("Transfer War Room: Opportunity Mapping")
-        fig_war = px.scatter(df, x="contract_end_year", y="TPI", size="market_value", color="Transfer_Prob",
-                             text="player_name", title="Performance vs. Contract Expiry", height=600)
+        st.subheader("Decision Support: Opportunity Mapping")
+        
+        # RESTORED: Performance vs Contract Expiry Graph
+        fig_war = px.scatter(
+            df, 
+            x="contract_end_year", 
+            y="TPI", 
+            size="market_value", 
+            color="Transfer_Prob",
+            text="player_name",
+            labels={"contract_end_year": "Contract Expiry Year", "TPI": "Performance (TPI)"},
+            title="Strategic Opportunity Map: TPI vs. Contract Expiry",
+            height=600
+        )
+        fig_war.update_traces(textposition='top center')
         st.plotly_chart(fig_war, use_container_width=True)
+        
+        st.info("💡 **Strategy:** Focus on the Top-Left quadrant (High TPI, Early Expiry) for recruitment or renewal.")
+        st.dataframe(df[['player_name', 'TPI', 'market_value', 'contract_end_year', 'Transfer_Prob']].sort_values(by='TPI', ascending=False))
 
 else:
-    st.info("Upload the Elite CSV to activate the dashboard.")
+    st.info("Upload the Elite CSV to activate all tabs.")
