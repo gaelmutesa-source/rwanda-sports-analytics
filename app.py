@@ -137,4 +137,6 @@ if file:
                             "<br>".join([f"✅ {r['player_name']} ({r['club']}) - TPI: {r['TPI']:.1f}, Value: ${int(r['market_value']):,}" for _, r in suggestions.head(3).iterrows()]) + 
                             '</div>', unsafe_allow_html=True)
         
-        st.dataframe(df[['player_name', 'club', 'TPI', 'market_value', 'contract_end_year']].sort_values
+        st.dataframe(df[['player_name', 'club', 'TPI', 'market_value', 'contract_end_year']].sort_values(by='TPI', ascending=False))
+else:
+    st.info("Upload the CSV to begin.")
