@@ -105,4 +105,16 @@ if file:
             # Logic: Find players with similar TPI (+/- 10) but better contract (Years_Left > 1)
             suggestions = df[(df['player_name'] != target_p) & 
                              (df['TPI'] >= t_data['TPI'] - 10) & 
-                             (df['Years_Left'] >
+                             (df['Years_Left'] > 1)].sort_values(by='TPI', ascending=False)
+            
+            st.write(f"**Current Risk:** {target_p} (TPI: {t_data['TPI']:.1f}) is nearing contract expiry.")
+            if not suggestions.empty:
+                st.markdown(f'<div class="suggestion-box"><b>Recommended Replacements:</b><br>' + 
+                            "<br>".join([f"✅ {r['player_name']} ({r['club']}) - TPI: {r['TPI']:.1f}, Value: ${int(r['market_value']):,}" for _, r in suggestions.head(3).iterrows()]) + 
+                            '</div>', unsafe_allow_html=True)
+            else:
+                st.warning("No suitable high-performance replacements found with stable contracts.")
+        
+        st.dataframe(df[['player_name', 'club', 'TPI', 'market_value', 'contract_end_year']].sort_values(by='TPI', ascending=False))
+else:
+    st.info("Upload the CSV to begin.")
