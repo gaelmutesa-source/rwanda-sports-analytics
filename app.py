@@ -20,7 +20,6 @@ st.markdown("""
 
 def calculate_analytics(df):
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
-    # Safety: Fill missing values and ensure numeric types
     numeric_cols = ['pass_accuracy', 'dribble_success', 'interceptions', 'positioning_rating', 
                     'sprint_speed', 'stamina', 'composure', 'big_game_impact', 'market_value', 'age', 'contract_end_year']
     for col in numeric_cols:
@@ -37,8 +36,13 @@ def calculate_analytics(df):
     df['Transfer_Prob'] = df['Transfer_Prob'].clip(0, 0.95)
     df['Years_Left'] = df['contract_end_year'] - 2026
     
-    team_avg = {'Tech': df['Tech_Score'].mean(), 'Tact': df['Tact_Score'].mean(), 
-                'Phys': df['Phys_Score'].mean(), 'Ment': df['Ment_Score'].mean()}
+    # CALCULATE TEAM AVERAGES
+    team_avg = {
+        'Technical': df['Tech_Score'].mean(),
+        'Tactical': df['Tact_Score'].mean(),
+        'Physical': df['Phys_Score'].mean(),
+        'Mental': df['Ment_Score'].mean()
+    }
     return df, team_avg
 
 # --- 2. EXECUTIVE PDF ---
@@ -81,7 +85,7 @@ if file:
             pdf = generate_pro_pdf(p_d)
             st.download_button("Click to Download", pdf, f"{p_name}_Report.pdf")
 
-    # --- TAB 2: COMPARISON RESTORED ---
+    # --- TAB 2: COMPARISON ANALYSIS (TEAM AVERAGE FIX) ---
     with tabs[1]:
         st.subheader("Performance Comparison & Benchmarking")
         col1, col2 = st.columns(2)
@@ -93,17 +97,33 @@ if file:
         scores1 = [p1_data['Tech_Score'], p1_data['Tact_Score'], p1_data['Phys_Score'], p1_data['Ment_Score']]
         
         fig = go.Figure()
+        
+        # Primary Player Bars
         fig.add_trace(go.Bar(x=cats, y=scores1, name=p1_name, marker_color='#212529'))
-        fig.add_trace(go.Scatter(x=cats, y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], 
-                                 mode='lines+markers', name='Team Average', line=dict(color='#007BFF', dash='dash')))
         
         if compare_on:
             p2_name = st.selectbox("Compare With", df['player_name'].unique(), index=1, key="comp_p2")
             p2_data = df[df['player_name'] == p2_name].iloc[0]
             scores2 = [p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']]
+            # Secondary Player Bars
             fig.add_trace(go.Bar(x=cats, y=scores2, name=p2_name, marker_color='#D00000'))
         
-        fig.update_layout(yaxis_range=[0,100], title="Pillar Benchmarking")
+        # TEAM AVERAGE LINE - Forced to render on top with high contrast
+        team_vals = [team_avg['Technical'], team_avg['Tactical'], team_avg['Physical'], team_avg['Mental']]
+        fig.add_trace(go.Scatter(
+            x=cats, 
+            y=team_vals, 
+            mode='lines+markers', 
+            name='Team Average', 
+            line=dict(color='#007BFF', width=4, dash='dash'),
+            marker=dict(size=10, symbol='diamond')
+        ))
+        
+        fig.update_layout(
+            yaxis_range=[0,105], 
+            title=f"Performance Benchmarking: {p1_name} vs Squad Average",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
         st.plotly_chart(fig, use_container_width=True)
 
     with tabs[2]:
@@ -118,7 +138,6 @@ if file:
         fig_war = px.scatter(df, x="contract_end_year", y="TPI", size="market_value", color="Transfer_Prob",
                              text="player_name", title="Performance vs. Contract Expiry", height=600)
         st.plotly_chart(fig_war, use_container_width=True)
-        st.dataframe(df[['player_name', 'TPI', 'market_value', 'contract_end_year']].sort_values(by='TPI', ascending=False))
 
 else:
     st.info("Upload the Elite CSV to activate the dashboard.")
