@@ -13,8 +13,8 @@ st.markdown("""
     [data-testid="stSidebar"] { background-color: #F1F3F5; border-right: 1px solid #DEE2E6; }
     .stTabs [data-baseweb="tab-list"] { background-color: #E9ECEF; border-radius: 8px; }
     .player-card { border: 2px solid #E9ECEF; padding: 20px; border-radius: 15px; background: white; margin-bottom: 20px; }
+    .label-box { background-color: #EBF8FF; border-left: 5px solid #3182CE; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.9rem; }
     .preview-box { background-color: #1B263B; padding: 25px; border-radius: 15px; color: white; text-align: center; }
-    .quota-box { background-color: #FFF5F5; border: 1px solid #FEB2B2; padding: 10px; border-radius: 5px; color: #C53030; font-weight: bold; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -22,7 +22,6 @@ def calculate_analytics(df):
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
     current_year = 2026
     
-    # Critical Columns for Integrity
     numeric_cols = ['pass_accuracy', 'dribble_success', 'interceptions', 'positioning_rating', 
                     'sprint_speed', 'stamina', 'composure', 'big_game_impact', 'market_value', 
                     'age', 'contract_end_year', 'mins_played', 'goals', 'assists',
@@ -34,12 +33,10 @@ def calculate_analytics(df):
         else:
             df[col] = 0
             
-    # Category Safety
     if 'league' not in df.columns: df['league'] = 'Rwanda Premier'
     if 'nationality' not in df.columns: df['nationality'] = 'Rwanda'
     if 'club' not in df.columns: df['club'] = 'Unknown Club'
 
-    # Core Analytics Logic
     df['Tech_Score'] = df['pass_accuracy'] * 0.6 + df['dribble_success'] * 0.4
     df['Tact_Score'] = (df['interceptions'] * 5) + (df['positioning_rating'] * 0.5)
     df['Phys_Score'] = (df['sprint_speed'] * 2) + (df['stamina'] * 0.2)
@@ -75,18 +72,17 @@ if df_raw is not None:
     
     tabs = st.tabs(["👤 Profile", "📊 Comparison", "📋 Health", "🌍 War Room", "🔥 Match Day", "📈 Progress", "🛰️ Regional"])
 
-    # --- TAB 1: PROFILE (FIXED) ---
     with tabs[0]:
         p_name = st.selectbox("Select Player Profile", df['player_name'].unique(), key="prof_selector")
         p_d = df.loc[df['player_name'] == p_name].iloc[0]
         st.markdown(f'<div class="player-card"><h2>{p_name}</h2><b>{p_d["club"]} | {p_d["league"]}</b></div>', unsafe_allow_html=True)
         m1, m2, m3 = st.columns(3)
-        m1.metric("TPI", f"{p_d['TPI']:.1f}")
+        m1.metric("TPI Index", f"{p_d['TPI']:.1f}")
         m2.metric("Market Value", f"${int(p_d['market_value']):,}")
         m3.metric("Nationality", p_d['nationality'])
 
-    # --- TAB 2: COMPARISON (BENCHMARK FIXED) ---
     with tabs[1]:
+        st.markdown('<div class="label-box">💡 <b>How to read this chart:</b> Compare the bars against the <b>Dashed Blue Line</b>. If a bar is above the line, the player is performing <b>above league average</b> in that specific pillar.</div>', unsafe_allow_html=True)
         col1, col2 = st.columns(2)
         p1 = col1.selectbox("Primary Player", df['player_name'].unique(), key="c1_unique")
         compare_on = col2.checkbox("Enable Comparison", key="comp_toggle")
@@ -98,56 +94,38 @@ if df_raw is not None:
             p2 = st.selectbox("Compare With", df['player_name'].unique(), index=1, key="c2_unique")
             p2_data = df.loc[df['player_name'] == p2].iloc[0]
             fig.add_trace(go.Bar(x=cats, y=[p2_data['Tech_Score'], p2_data['Tact_Score'], p2_data['Phys_Score'], p2_data['Ment_Score']], name=p2, marker_color='#D00000'))
-        fig.add_trace(go.Scatter(x=cats, y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='League Avg', line=dict(color='#007BFF', dash='dash')))
+        fig.add_trace(go.Scatter(x=cats, y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='League Avg', line=dict(color='#007BFF', dash='dash'), marker=dict(size=10, symbol='diamond')))
         st.plotly_chart(fig, use_container_width=True)
 
-    # --- TAB 3: HEALTH ---
     with tabs[2]:
+        st.markdown('<div class="label-box">💡 <b>Talent Map Insight:</b> Players in the <b>Top Right</b> are your high-performers with high fitness. Players in the <b>Top Left</b> are elite talents at high risk of injury (overloaded).</div>', unsafe_allow_html=True)
         low = df[df['Phys_Score'] < 65]
         for _, p in low.iterrows(): st.error(f"🚨 Risk: {p['player_name']} ({p['Phys_Score']:.1f}%)")
-        fig_health = px.scatter(df, x="Phys_Score", y="TPI", text="player_name", color="TPI", title="Talent Map")
+        fig_health = px.scatter(df, x="Phys_Score", y="TPI", text="player_name", color="TPI", title="Talent Map: Readiness vs. Performance")
         st.plotly_chart(fig_health, use_container_width=True)
 
-    # --- TAB 4: WAR ROOM ---
     with tabs[3]:
+        st.markdown('<div class="label-box">💡 <b>Opportunity Map:</b> Bubble size represents <b>Market Value</b>. Focus on large bubbles near <b>2026/2027</b>; these are your high-value assets with expiring contracts.</div>', unsafe_allow_html=True)
         fig_war = px.scatter(df, x="contract_end_year", y="TPI", size="market_value", color="Transfer_Prob", text="player_name")
         st.plotly_chart(fig_war, use_container_width=True)
 
-    # --- TAB 5: MATCH DAY ---
-    with tabs[4]:
-        starting_xi = st.multiselect("Select Starting XI", df['player_name'].unique(), max_selections=11)
-        if len(starting_xi) > 0:
-            xi_avg = df[df['player_name'].isin(starting_xi)][['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score', 'TPI']].mean()
-            opp = st.selectbox("Opponent", df['club'].unique(), key="match_opp")
-            opp_df = df[df['club'] == opp]
-            if not opp_df.empty:
-                opp_avg = opp_df[['Tech_Score', 'Tact_Score', 'Phys_Score', 'Ment_Score', 'TPI']].mean()
-                win_p = max(5, min(95, (50 + ((xi_avg['TPI'] - opp_avg['TPI']) * 3))))
-                st.markdown(f'<div class="preview-box"><h1>{win_p:.1f}%</h1><p>Win Probability</p></div>', unsafe_allow_html=True)
-
-    # --- TAB 6: PROGRESS ---
     with tabs[5]:
+        st.markdown('<div class="label-box">💡 <b>Momentum Guide:</b> An <b>upward slope</b> indicates a player in peak form. A <b>downward slope</b> over 3 matches suggests it is time to rotate or investigate burnout.</div>', unsafe_allow_html=True)
         f_name = st.selectbox("Track Form", df['player_name'].unique(), key="form_tr")
         f_d = df.loc[df['player_name'] == f_name].iloc[0]
         hist = [f_d['tpi_m5'], f_d['tpi_m4'], f_d['tpi_m3'], f_d['tpi_m2'], f_d['tpi_m1']]
         fig_f = px.line(x=["M-5", "M-4", "M-3", "M-2", "Last"], y=hist, markers=True, title=f"Trend: {f_name}")
         st.plotly_chart(fig_f, use_container_width=True)
 
-    # --- TAB 7: REGIONAL ---
     with tabs[6]:
-        st.header("🛰️ Regional Scouting & Foreign Quota")
-        my_club = st.selectbox("My Club", df[df['league'] == 'Rwanda Premier']['club'].unique())
-        squad = df[df['club'] == my_club]
-        foreign_count = len(squad[squad['nationality'] != 'Rwanda'])
-        st.metric("Foreign Quota", f"{foreign_count} / 6")
-        
-        target = st.selectbox("Regional Target", df[df['league'] != 'Rwanda Premier']['player_name'].unique())
+        st.markdown('<div class="label-box">💡 <b>Scouting Radar:</b> The <b>Red Area</b> represents the regional target. The <b>Blue Area</b> is your current squad average. Sign players whose red area significantly expands past the blue.</div>', unsafe_allow_html=True)
+        target = st.selectbox("Regional Target", df[df['league'] != 'Rwanda Premier']['player_name'].unique(), key="target_scout")
         if target:
             t_d = df.loc[df['player_name'] == target].iloc[0]
-            st.write(f"### Target Benchmark: {target}")
             fig_sc = go.Figure()
-            fig_sc.add_trace(go.Scatterpolar(r=[t_d['Tech_Score'], t_d['Tact_Score'], t_d['Phys_Score'], t_d['Ment_Score']], theta=['Tech', 'Tact', 'Phys', 'Ment'], fill='toself', name=target))
+            fig_sc.add_trace(go.Scatterpolar(r=[t_d['Tech_Score'], t_d['Tact_Score'], t_d['Phys_Score'], t_d['Ment_Score']], theta=['Tech', 'Tact', 'Phys', 'Ment'], fill='toself', name=target, line_color='#E53E3E'))
+            fig_sc.add_trace(go.Scatterpolar(r=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], theta=['Tech', 'Tact', 'Phys', 'Ment'], fill='toself', name="Squad Avg", line_color='#3182CE'))
             st.plotly_chart(fig_sc, use_container_width=True)
 
 else:
-    st.info("Upload CSV to activate.")
+    st.info("Upload CSV to activate labels and analytics.")
