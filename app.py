@@ -6,15 +6,15 @@ from fpdf import FPDF
 import io
 
 # --- 1. SETTINGS & UI ---
-st.set_page_config(page_title="RPL Analytics Elite", layout="wide", page_icon="⚽")
+st.set_page_config(page_title="ITARA Sports Analytics", layout="wide", page_icon="⚽")
 
 st.markdown("""
     <style>
     .main { background-color: #FFFFFF; color: #212529; }
     .stMetric { background-color: #F8F9FA; border: 1px solid #DEE2E6; padding: 15px; border-radius: 10px; }
-    .player-card { border: 2px solid #E9ECEF; padding: 20px; border-radius: 15px; background: white; margin-bottom: 20px; }
     .label-box { background-color: #EBF8FF; border-left: 5px solid #3182CE; padding: 12px; margin-bottom: 15px; border-radius: 4px; font-size: 0.9rem; }
     .preview-box { background-color: #1B263B; padding: 25px; border-radius: 15px; color: white; text-align: center; }
+    .sidebar .sidebar-content { background-image: linear-gradient(#1B263B, #1B263B); color: white; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -37,7 +37,6 @@ def calculate_analytics(df):
     df['Ment_Score'] = (df['composure'] * 0.7) + (df['big_game_impact'] * 0.3)
     df['TPI'] = (df['Tech_Score']*0.35 + df['Tact_Score']*0.25 + df['Phys_Score']*0.25 + df['Ment_Score']*0.15)
     
-    # Financial Logic
     avg_val_tpi = df['market_value'].sum() / df['TPI'].sum() if df['TPI'].sum() > 0 else 0
     df['Leakage'] = (df['market_value'] - (df['TPI'] * avg_val_tpi)).clip(lower=0)
     
@@ -45,82 +44,80 @@ def calculate_analytics(df):
                 'Phys': df['Phys_Score'].mean(), 'Ment': df['Ment_Score'].mean(), 'TPI': df['TPI'].mean()}
     return df, team_avg
 
-# --- 3. PROFESSIONAL PDF ENGINE ---
+# --- 3. ITARA SIGNED PDF ENGINE ---
 def generate_pdf(df, club_name, win_p, rec, leakage_total):
     pdf = FPDF()
     pdf.add_page()
     
-    # Header Branding
-    pdf.set_fill_color(33, 37, 41)
-    pdf.rect(0, 0, 210, 40, 'F')
+    # 1. Executive Header
+    pdf.set_fill_color(27, 38, 59)
+    pdf.rect(0, 0, 210, 45, 'F')
     pdf.set_text_color(255, 255, 255)
-    pdf.set_font("Arial", 'B', 24)
+    pdf.set_font("Arial", 'B', 22)
     pdf.cell(190, 20, txt="STRATEGIC PERFORMANCE AUDIT", ln=True, align='L')
-    pdf.set_font("Arial", '', 12)
-    pdf.cell(190, 10, txt=f"CONFIDENTIAL REPORT: {club_name.upper()}", ln=True, align='L')
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(190, 5, txt="OFFICIAL DATA PROVIDER: ITARA SPORTS ANALYTICS", ln=True, align='L')
+    pdf.cell(190, 5, txt=f"CONFIDENTIAL FOR: {club_name.upper()}", ln=True, align='L')
     
-    # Reset Text Color
     pdf.set_text_color(0, 0, 0)
-    pdf.ln(15)
+    pdf.ln(20)
     
-    # Section 1: Executive Summary
-    pdf.set_font("Arial", 'B', 14)
-    pdf.set_text_color(49, 130, 206)
-    pdf.cell(190, 10, txt="1. EXECUTIVE SUMMARY", ln=True)
-    pdf.set_text_color(0, 0, 0)
-    pdf.set_font("Arial", '', 11)
-    summary_txt = (f"This audit provides a quantified evaluation of {club_name}'s current squad performance, "
-                   f"market efficiency, and match-day readiness for the 2026 season.")
-    pdf.multi_cell(190, 7, txt=summary_txt)
-    pdf.ln(5)
-
-    # Section 2: Tactical Command (Table)
+    # 2. Strategic Table
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 10, txt="TACTICAL PREVIEW & PROBABILITY", ln=True)
-    
+    pdf.cell(190, 10, txt="I. STRATEGIC STANDING & FINANCIAL LEAKAGE", ln=True)
     pdf.set_font("Arial", 'B', 10)
-    pdf.set_fill_color(248, 249, 250)
-    pdf.cell(95, 10, "Metric", 1, 0, 'C', True)
-    pdf.cell(95, 10, "Value / Recommendation", 1, 1, 'C', True)
+    pdf.set_fill_color(240, 240, 240)
+    pdf.cell(95, 10, "Assessment Category", 1, 0, 'C', True)
+    pdf.cell(95, 10, "Value / Strategic Direction", 1, 1, 'C', True)
     
     pdf.set_font("Arial", '', 10)
-    pdf.cell(95, 10, "Next Match Win Probability", 1, 0, 'C')
+    pdf.cell(95, 10, "Win Probability (Next Match)", 1, 0, 'C')
     pdf.cell(95, 10, f"{win_p}%", 1, 1, 'C')
-    pdf.cell(95, 10, "Tactical Strategy", 1, 0, 'C')
+    pdf.cell(95, 10, "Recommended Tactical Block", 1, 0, 'C')
     pdf.cell(95, 10, rec, 1, 1, 'C')
-    pdf.cell(95, 10, "Financial Capital Leakage", 1, 0, 'C')
+    pdf.cell(95, 10, "Total Squad Capital Inefficiency", 1, 0, 'C')
     pdf.cell(95, 10, f"${int(leakage_total):,}", 1, 1, 'C')
     
     pdf.ln(10)
 
-    # Section 3: Detailed Squad Audit (Table)
+    # 3. Squad Performance Table
     pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 10, txt="SQUAD ANALYTICS DATASET", ln=True)
-    
-    # Table Header
+    pdf.cell(190, 10, txt="II. INDIVIDUAL PLAYER AUDIT", ln=True)
     pdf.set_font("Arial", 'B', 9)
-    pdf.set_fill_color(233, 236, 239)
-    pdf.cell(60, 10, "PLAYER NAME", 1, 0, 'C', True)
-    pdf.cell(25, 10, "TPI INDEX", 1, 0, 'C', True)
-    pdf.cell(35, 10, "MARKET VALUE", 1, 0, 'C', True)
-    pdf.cell(35, 10, "GOALS/AST", 1, 0, 'C', True)
-    pdf.cell(35, 10, "HEALTH STATUS", 1, 1, 'C', True)
+    pdf.set_fill_color(230, 230, 230)
+    pdf.cell(60, 10, "NAME", 1, 0, 'C', True)
+    pdf.cell(30, 10, "TPI INDEX", 1, 0, 'C', True)
+    pdf.cell(35, 10, "MARKET VAL", 1, 0, 'C', True)
+    pdf.cell(30, 10, "G/A", 1, 0, 'C', True)
+    pdf.cell(35, 10, "READINESS", 1, 1, 'C', True)
     
-    # Table Content
     pdf.set_font("Arial", '', 8)
     club_df = df[df['club'] == club_name].sort_values(by='TPI', ascending=False)
     for _, row in club_df.iterrows():
         health = "STABLE" if row['Phys_Score'] >= 65 else "CRITICAL"
         pdf.cell(60, 8, row['player_name'], 1, 0, 'L')
-        pdf.cell(25, 8, f"{row['TPI']:.1f}", 1, 0, 'C')
+        pdf.cell(30, 8, f"{row['TPI']:.1f}", 1, 0, 'C')
         pdf.cell(35, 8, f"${int(row['market_value']):,}", 1, 0, 'C')
-        pdf.cell(35, 8, f"{int(row['goals'])} / {int(row['assists'])}", 1, 0, 'C')
+        pdf.cell(30, 8, f"{int(row['goals'])}/{int(row['assists'])}", 1, 0, 'C')
         pdf.cell(35, 8, health, 1, 1, 'C')
+
+    # 4. Footer, Copyright & ITARA Signature
+    pdf.ln(20)
+    pdf.set_font("Arial", 'I', 8)
+    pdf.multi_cell(190, 5, txt="Disclaimer: This data is proprietary property of ITARA Sports Analytics. Unauthorized duplication or distribution is prohibited by Rwandan IP Law 2026.")
+    
+    pdf.ln(10)
+    pdf.set_font("Arial", 'B', 10)
+    pdf.cell(95, 10, "Authorized Signature (ITARA Chief Analyst):", 0, 0, 'L')
+    pdf.cell(95, 10, "__________________________", 0, 1, 'R')
+    
+    pdf.set_font("Arial", '', 8)
+    pdf.cell(190, 10, txt=f"© 2026 ITARA SPORTS ANALYTICS - All Rights Reserved.", ln=True, align='C')
 
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 4. STREAMLIT APP LOGIC ---
-st.sidebar.title("💎 RPL ELITE")
+# --- 4. APP INTERFACE ---
+st.sidebar.title("💎 ITARA ELITE")
 uploaded_file = st.sidebar.file_uploader("Upload Client CSV", type="csv")
 
 if 'df' not in st.session_state:
@@ -128,7 +125,7 @@ if 'df' not in st.session_state:
 
 if uploaded_file is not None:
     st.session_state.df = pd.read_csv(uploaded_file)
-elif st.sidebar.button("Sync with Cloud"):
+elif st.sidebar.button("Sync with Cloud Database"):
     try:
         st.session_state.df = pd.read_csv("https://raw.githubusercontent.com/Marclon11/Data/main/rpl_master_data.csv")
     except:
@@ -136,23 +133,9 @@ elif st.sidebar.button("Sync with Cloud"):
 
 if st.session_state.df is not None:
     df, team_avg = calculate_analytics(st.session_state.df)
-    tabs = st.tabs(["👤 Profile", "📊 Comparison", "📋 Health", "🔥 Match Day", "📈 Progress", "💎 Executive Report"])
+    tabs = st.tabs(["📊 Comparison", "📋 Health", "🔥 Match Day", "📈 Progress", "💎 ITARA Audit"])
 
-    with tabs[1]:
-        col_c1, col_c2 = st.columns(2)
-        p1 = col_c1.selectbox("Primary Player", df['player_name'].unique(), key="c1")
-        p2_on = col_c2.checkbox("Compare Mode", key="p2_on")
-        p1_d = df.loc[df['player_name'] == p1].iloc[0]
-        fig = go.Figure()
-        fig.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], name=p1, marker_color='#212529'))
-        if p2_on:
-            p2 = col_c2.selectbox("Compare With", df['player_name'].unique(), index=1, key="c2")
-            p2_d = df.loc[df['player_name'] == p2].iloc[0]
-            fig.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], name=p2, marker_color='#D00000'))
-        fig.add_trace(go.Scatter(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='Avg', line=dict(dash='dash')))
-        st.plotly_chart(fig, use_container_width=True)
-
-    with tabs[3]:
+    with tabs[2]:
         st.header("🔥 Match Command")
         c_m1, c_m2 = st.columns(2)
         my_club = c_m1.selectbox("My Club", df['club'].unique(), key="m1")
@@ -163,15 +146,15 @@ if st.session_state.df is not None:
         st.markdown(f'<div class="preview-box"><h1>{win_p}%</h1><p>Win Prob vs {opponent}</p></div>', unsafe_allow_html=True)
         st.session_state.last_win_p = win_p
 
-    with tabs[5]:
-        st.header("💎 Executive Reporting")
-        rep_club = st.selectbox("Club for Audit", df['club'].unique(), key="rc")
-        if st.button("Generate Professional PDF"):
+    with tabs[4]:
+        st.header("💎 ITARA Executive Briefing")
+        rep_club = st.selectbox("Select Club for Formal Audit", df['club'].unique(), key="rep_c")
+        if st.button("Generate Signed ITARA PDF"):
             wp = st.session_state.get('last_win_p', 50.0)
             leak = df[df['club'] == rep_club]['Leakage'].sum()
-            rec = "Neutral block recommended." if wp < 55 else "Aggressive press recommended."
+            rec = "Defensive low block focus." if wp < 55 else "High-intensity technical press."
             pdf_bytes = generate_pdf(df, rep_club, wp, rec, leak)
-            st.download_button("📥 Download Executive Report", data=pdf_bytes, file_name=f"{rep_club}_Audit_2026.pdf")
+            st.download_button("📥 Download Official ITARA Audit", data=pdf_bytes, file_name=f"{rep_club}_ITARA_Official_Audit.pdf")
 
 else:
-    st.info("Upload CSV to activate.")
+    st.info("Upload CSV to activate ITARA Sports Analytics Suite.")
