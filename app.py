@@ -18,6 +18,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- 2. ANALYTICS ENGINE ---
 def calculate_analytics(df):
     weights = {'Technical': 0.35, 'Tactical': 0.25, 'Physical': 0.25, 'Mental': 0.15}
     numeric_cols = ['pass_accuracy', 'dribble_success', 'interceptions', 'positioning_rating', 
@@ -36,6 +37,7 @@ def calculate_analytics(df):
     df['Ment_Score'] = (df['composure'] * 0.7) + (df['big_game_impact'] * 0.3)
     df['TPI'] = (df['Tech_Score']*0.35 + df['Tact_Score']*0.25 + df['Phys_Score']*0.25 + df['Ment_Score']*0.15)
     
+    # Financial Logic
     avg_val_tpi = df['market_value'].sum() / df['TPI'].sum() if df['TPI'].sum() > 0 else 0
     df['Leakage'] = (df['market_value'] - (df['TPI'] * avg_val_tpi)).clip(lower=0)
     
@@ -43,108 +45,133 @@ def calculate_analytics(df):
                 'Phys': df['Phys_Score'].mean(), 'Ment': df['Ment_Score'].mean(), 'TPI': df['TPI'].mean()}
     return df, team_avg
 
-def generate_pdf(df, club_name, win_p, rec):
+# --- 3. PROFESSIONAL PDF ENGINE ---
+def generate_pdf(df, club_name, win_p, rec, leakage_total):
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt=f"Executive Audit: {club_name}", ln=True, align='C')
-    pdf.ln(10)
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(190, 10, txt=f"Win Probability: {win_p}% | Recommendation: {rec}", ln=True)
+    
+    # Header Branding
+    pdf.set_fill_color(33, 37, 41)
+    pdf.rect(0, 0, 210, 40, 'F')
+    pdf.set_text_color(255, 255, 255)
+    pdf.set_font("Arial", 'B', 24)
+    pdf.cell(190, 20, txt="STRATEGIC PERFORMANCE AUDIT", ln=True, align='L')
+    pdf.set_font("Arial", '', 12)
+    pdf.cell(190, 10, txt=f"CONFIDENTIAL REPORT: {club_name.upper()}", ln=True, align='L')
+    
+    # Reset Text Color
+    pdf.set_text_color(0, 0, 0)
+    pdf.ln(15)
+    
+    # Section 1: Executive Summary
+    pdf.set_font("Arial", 'B', 14)
+    pdf.set_text_color(49, 130, 206)
+    pdf.cell(190, 10, txt="1. EXECUTIVE SUMMARY", ln=True)
+    pdf.set_text_color(0, 0, 0)
+    pdf.set_font("Arial", '', 11)
+    summary_txt = (f"This audit provides a quantified evaluation of {club_name}'s current squad performance, "
+                   f"market efficiency, and match-day readiness for the 2026 season.")
+    pdf.multi_cell(190, 7, txt=summary_txt)
     pdf.ln(5)
+
+    # Section 2: Tactical Command (Table)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(190, 10, txt="TACTICAL PREVIEW & PROBABILITY", ln=True)
+    
+    pdf.set_font("Arial", 'B', 10)
+    pdf.set_fill_color(248, 249, 250)
+    pdf.cell(95, 10, "Metric", 1, 0, 'C', True)
+    pdf.cell(95, 10, "Value / Recommendation", 1, 1, 'C', True)
+    
+    pdf.set_font("Arial", '', 10)
+    pdf.cell(95, 10, "Next Match Win Probability", 1, 0, 'C')
+    pdf.cell(95, 10, f"{win_p}%", 1, 1, 'C')
+    pdf.cell(95, 10, "Tactical Strategy", 1, 0, 'C')
+    pdf.cell(95, 10, rec, 1, 1, 'C')
+    pdf.cell(95, 10, "Financial Capital Leakage", 1, 0, 'C')
+    pdf.cell(95, 10, f"${int(leakage_total):,}", 1, 1, 'C')
+    
+    pdf.ln(10)
+
+    # Section 3: Detailed Squad Audit (Table)
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(190, 10, txt="SQUAD ANALYTICS DATASET", ln=True)
+    
+    # Table Header
+    pdf.set_font("Arial", 'B', 9)
+    pdf.set_fill_color(233, 236, 239)
+    pdf.cell(60, 10, "PLAYER NAME", 1, 0, 'C', True)
+    pdf.cell(25, 10, "TPI INDEX", 1, 0, 'C', True)
+    pdf.cell(35, 10, "MARKET VALUE", 1, 0, 'C', True)
+    pdf.cell(35, 10, "GOALS/AST", 1, 0, 'C', True)
+    pdf.cell(35, 10, "HEALTH STATUS", 1, 1, 'C', True)
+    
+    # Table Content
+    pdf.set_font("Arial", '', 8)
     club_df = df[df['club'] == club_name].sort_values(by='TPI', ascending=False)
     for _, row in club_df.iterrows():
-        pdf.cell(190, 8, txt=f"{row['player_name']} - TPI: {row['TPI']:.1f} - Value: ${int(row['market_value']):,}", ln=True)
+        health = "STABLE" if row['Phys_Score'] >= 65 else "CRITICAL"
+        pdf.cell(60, 8, row['player_name'], 1, 0, 'L')
+        pdf.cell(25, 8, f"{row['TPI']:.1f}", 1, 0, 'C')
+        pdf.cell(35, 8, f"${int(row['market_value']):,}", 1, 0, 'C')
+        pdf.cell(35, 8, f"{int(row['goals'])} / {int(row['assists'])}", 1, 0, 'C')
+        pdf.cell(35, 8, health, 1, 1, 'C')
+
     return pdf.output(dest='S').encode('latin-1')
 
-# --- 2. DATA HANDLING ---
+# --- 4. STREAMLIT APP LOGIC ---
 st.sidebar.title("💎 RPL ELITE")
-uploaded_file = st.sidebar.file_uploader("1. Upload Local Data", type="csv")
+uploaded_file = st.sidebar.file_uploader("Upload Client CSV", type="csv")
 
 if 'df' not in st.session_state:
     st.session_state.df = None
 
 if uploaded_file is not None:
     st.session_state.df = pd.read_csv(uploaded_file)
-elif st.sidebar.button("2. Sync with Cloud Database"):
+elif st.sidebar.button("Sync with Cloud"):
     try:
         st.session_state.df = pd.read_csv("https://raw.githubusercontent.com/Marclon11/Data/main/rpl_master_data.csv")
     except:
-        st.sidebar.error("Cloud unavailable.")
+        st.sidebar.error("Cloud Error.")
 
 if st.session_state.df is not None:
     df, team_avg = calculate_analytics(st.session_state.df)
     tabs = st.tabs(["👤 Profile", "📊 Comparison", "📋 Health", "🔥 Match Day", "📈 Progress", "💎 Executive Report"])
 
-    # --- TAB 1: PROFILE ---
-    with tabs[0]:
-        p_name = st.selectbox("Select Player Profile", df['player_name'].unique(), key="prof_v_locked")
-        p_d = df.loc[df['player_name'] == p_name].iloc[0]
-        st.markdown(f'<div class="player-card"><h2>{p_name}</h2>{p_d["club"]}</div>', unsafe_allow_html=True)
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Goals", int(p_d['goals']))
-        c2.metric("Assists", int(p_d['assists']))
-        c3.metric("TPI Index", f"{p_d['TPI']:.1f}")
-        c4.metric("Value", f"${int(p_d['market_value']):,}")
-
-    # --- TAB 2: COMPARISON ---
     with tabs[1]:
-        st.markdown('<div class="label-box">💡 Compare players or benchmark against the <b>League Average Line</b>.</div>', unsafe_allow_html=True)
         col_c1, col_c2 = st.columns(2)
-        p1 = col_c1.selectbox("Primary Player", df['player_name'].unique(), key="comp_p1_final")
-        enable_p2 = col_c2.checkbox("Enable Comparison Mode", key="enable_p2_final")
-        
+        p1 = col_c1.selectbox("Primary Player", df['player_name'].unique(), key="c1")
+        p2_on = col_c2.checkbox("Compare Mode", key="p2_on")
         p1_d = df.loc[df['player_name'] == p1].iloc[0]
-        fig_c = go.Figure()
-        fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], name=p1, marker_color='#212529'))
-        
-        if enable_p2:
-            p2 = col_c2.selectbox("Compare With", df['player_name'].unique(), index=1, key="comp_p2_final")
+        fig = go.Figure()
+        fig.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], name=p1, marker_color='#212529'))
+        if p2_on:
+            p2 = col_c2.selectbox("Compare With", df['player_name'].unique(), index=1, key="c2")
             p2_d = df.loc[df['player_name'] == p2].iloc[0]
-            fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], name=p2, marker_color='#D00000'))
-        
-        fig_c.add_trace(go.Scatter(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='League Avg', line=dict(dash='dash', color='#007BFF'), marker=dict(symbol='diamond', size=10)))
-        st.plotly_chart(fig_c, use_container_width=True)
+            fig.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], name=p2, marker_color='#D00000'))
+        fig.add_trace(go.Scatter(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='Avg', line=dict(dash='dash')))
+        st.plotly_chart(fig, use_container_width=True)
 
-    # --- TAB 3: HEALTH ---
-    with tabs[2]:
-        risks = df[df['Phys_Score'] < 65]
-        if not risks.empty:
-            for _, r in risks.iterrows(): st.error(f"🚨 **Injury Risk:** {r['player_name']} ({r['Phys_Score']:.1f}%)")
-        else: st.success("✅ All players fit.")
-        st.plotly_chart(px.scatter(df, x="Phys_Score", y="TPI", text="player_name", color="TPI"), use_container_width=True)
-
-    # --- TAB 4: MATCH DAY ---
     with tabs[3]:
-        st.header("🔥 Match Command Center")
-        col_m1, col_m2 = st.columns(2)
-        my_club = col_m1.selectbox("Select Your Club", df['club'].unique(), key="m_c_final")
-        opponent = col_m2.selectbox("Select Opponent", [c for c in df['club'].unique() if c != my_club], key="m_o_final")
-        
+        st.header("🔥 Match Command")
+        c_m1, c_m2 = st.columns(2)
+        my_club = c_m1.selectbox("My Club", df['club'].unique(), key="m1")
+        opponent = c_m2.selectbox("Opponent", [c for c in df['club'].unique() if c != my_club], key="m2")
         xi_tpi = df[df['club'] == my_club]['TPI'].mean()
         opp_tpi = df[df['club'] == opponent]['TPI'].mean()
         win_p = round(50 + (xi_tpi - opp_tpi) * 3, 1)
-        
-        st.markdown(f'<div class="preview-box"><h1>{win_p}%</h1><p>Win Probability vs {opponent}</p></div>', unsafe_allow_html=True)
-        # Store for PDF report
-        st.session_state.current_win_p = win_p
+        st.markdown(f'<div class="preview-box"><h1>{win_p}%</h1><p>Win Prob vs {opponent}</p></div>', unsafe_allow_html=True)
+        st.session_state.last_win_p = win_p
 
-    # --- TAB 5: PROGRESS ---
-    with tabs[4]:
-        st.header("📈 Seasonal Form Progress")
-        f_name = st.selectbox("Track Player Form", df['player_name'].unique(), key="f_t_final")
-        f_d = df.loc[df['player_name'] == f_name].iloc[0]
-        history = [f_d['tpi_m5'], f_d['tpi_m4'], f_d['tpi_m3'], f_d['tpi_m2'], f_d['tpi_m1']]
-        st.plotly_chart(px.line(x=["M-5", "M-4", "M-3", "M-2", "Last Match"], y=history, markers=True, title=f"Trend: {f_name}"), use_container_width=True)
-
-    # --- TAB 6: EXECUTIVE PDF ---
     with tabs[5]:
-        st.header("💎 Executive Performance Report")
-        rep_club = st.selectbox("Select Club for Report", df['club'].unique(), key="rep_c_final")
-        if st.button("Generate Strategy PDF"):
-            wp = st.session_state.get('current_win_p', 50.0)
-            pdf_b = generate_pdf(df, rep_club, wp, "Maintain tactical discipline and physical load management.")
-            st.download_button("📥 Download Report", data=pdf_b, file_name=f"{rep_club}_Strategy.pdf")
+        st.header("💎 Executive Reporting")
+        rep_club = st.selectbox("Club for Audit", df['club'].unique(), key="rc")
+        if st.button("Generate Professional PDF"):
+            wp = st.session_state.get('last_win_p', 50.0)
+            leak = df[df['club'] == rep_club]['Leakage'].sum()
+            rec = "Neutral block recommended." if wp < 55 else "Aggressive press recommended."
+            pdf_bytes = generate_pdf(df, rep_club, wp, rec, leak)
+            st.download_button("📥 Download Executive Report", data=pdf_bytes, file_name=f"{rep_club}_Audit_2026.pdf")
 
 else:
-    st.info("Upload CSV or Sync Cloud to activate the Elite Analytics Suite.")
+    st.info("Upload CSV to activate.")
