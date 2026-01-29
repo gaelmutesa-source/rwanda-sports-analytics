@@ -78,7 +78,7 @@ if st.session_state.df is not None:
 
     # --- TAB 1: PROFILE ---
     with tabs[0]:
-        p_name = st.selectbox("Select Player Profile", df['player_name'].unique(), key="prof_v_fix")
+        p_name = st.selectbox("Select Player Profile", df['player_name'].unique(), key="prof_v_locked")
         p_d = df.loc[df['player_name'] == p_name].iloc[0]
         st.markdown(f'<div class="player-card"><h2>{p_name}</h2>{p_d["club"]}</div>', unsafe_allow_html=True)
         c1, c2, c3, c4 = st.columns(4)
@@ -87,37 +87,24 @@ if st.session_state.df is not None:
         c3.metric("TPI Index", f"{p_d['TPI']:.1f}")
         c4.metric("Value", f"${int(p_d['market_value']):,}")
 
-    # --- TAB 2: COMPARISON (RESTORED DUAL SELECTION) ---
+    # --- TAB 2: COMPARISON ---
     with tabs[1]:
-        st.markdown('<div class="label-box">💡 Compare two players or benchmark against the <b>League Average Line</b>.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="label-box">💡 Compare players or benchmark against the <b>League Average Line</b>.</div>', unsafe_allow_html=True)
         col_c1, col_c2 = st.columns(2)
-        p1 = col_c1.selectbox("Primary Player", df['player_name'].unique(), key="comp_p1")
-        enable_p2 = col_c2.checkbox("Enable Comparison Mode", key="enable_p2")
+        p1 = col_c1.selectbox("Primary Player", df['player_name'].unique(), key="comp_p1_final")
+        enable_p2 = col_c2.checkbox("Enable Comparison Mode", key="enable_p2_final")
         
         p1_d = df.loc[df['player_name'] == p1].iloc[0]
         fig_c = go.Figure()
+        fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], name=p1, marker_color='#212529'))
         
-        # Player 1
-        fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], 
-                              y=[p1_d['Tech_Score'], p1_d['Tact_Score'], p1_d['Phys_Score'], p1_d['Ment_Score']], 
-                              name=p1, marker_color='#212529'))
-        
-        # Player 2 (If enabled)
         if enable_p2:
-            p2 = col_c2.selectbox("Compare With", df['player_name'].unique(), index=1, key="comp_p2")
+            p2 = col_c2.selectbox("Compare With", df['player_name'].unique(), index=1, key="comp_p2_final")
             p2_d = df.loc[df['player_name'] == p2].iloc[0]
-            fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], 
-                                  y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], 
-                                  name=p2, marker_color='#D00000'))
+            fig_c.add_trace(go.Bar(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[p2_d['Tech_Score'], p2_d['Tact_Score'], p2_d['Phys_Score'], p2_d['Ment_Score']], name=p2, marker_color='#D00000'))
         
-        # League Average Benchmark
-        fig_c.add_trace(go.Scatter(x=['Tech', 'Tact', 'Phys', 'Ment'], 
-                                  y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], 
-                                  mode='lines+markers', name='League Avg', 
-                                  line=dict(dash='dash', color='#007BFF'), marker=dict(symbol='diamond', size=10)))
-        
+        fig_c.add_trace(go.Scatter(x=['Tech', 'Tact', 'Phys', 'Ment'], y=[team_avg['Tech'], team_avg['Tact'], team_avg['Phys'], team_avg['Ment']], mode='lines+markers', name='League Avg', line=dict(dash='dash', color='#007BFF'), marker=dict(symbol='diamond', size=10)))
         st.plotly_chart(fig_c, use_container_width=True)
-        [Image of a professional football player comparison dashboard showing bar charts with a dashed horizontal average line]
 
     # --- TAB 3: HEALTH ---
     with tabs[2]:
@@ -129,34 +116,35 @@ if st.session_state.df is not None:
 
     # --- TAB 4: MATCH DAY ---
     with tabs[3]:
-        st.header("🔥 Match Command")
+        st.header("🔥 Match Command Center")
         col_m1, col_m2 = st.columns(2)
-        my_club = col_m1.selectbox("Select Your Club", df['club'].unique(), key="m_c_fix")
-        opponent = col_m2.selectbox("Select Opponent", [c for c in df['club'].unique() if c != my_club], key="m_o_fix")
+        my_club = col_m1.selectbox("Select Your Club", df['club'].unique(), key="m_c_final")
+        opponent = col_m2.selectbox("Select Opponent", [c for c in df['club'].unique() if c != my_club], key="m_o_final")
         
         xi_tpi = df[df['club'] == my_club]['TPI'].mean()
         opp_tpi = df[df['club'] == opponent]['TPI'].mean()
         win_p = round(50 + (xi_tpi - opp_tpi) * 3, 1)
         
         st.markdown(f'<div class="preview-box"><h1>{win_p}%</h1><p>Win Probability vs {opponent}</p></div>', unsafe_allow_html=True)
-        st.session_state.win_p = win_p
+        # Store for PDF report
+        st.session_state.current_win_p = win_p
 
     # --- TAB 5: PROGRESS ---
     with tabs[4]:
-        st.header("📈 Seasonal Form")
-        f_name = st.selectbox("Track Player", df['player_name'].unique(), key="f_t_fix")
+        st.header("📈 Seasonal Form Progress")
+        f_name = st.selectbox("Track Player Form", df['player_name'].unique(), key="f_t_final")
         f_d = df.loc[df['player_name'] == f_name].iloc[0]
         history = [f_d['tpi_m5'], f_d['tpi_m4'], f_d['tpi_m3'], f_d['tpi_m2'], f_d['tpi_m1']]
-        st.plotly_chart(px.line(x=["M-5", "M-4", "M-3", "M-2", "Last"], y=history, markers=True, title=f"Trend: {f_name}"), use_container_width=True)
+        st.plotly_chart(px.line(x=["M-5", "M-4", "M-3", "M-2", "Last Match"], y=history, markers=True, title=f"Trend: {f_name}"), use_container_width=True)
 
     # --- TAB 6: EXECUTIVE PDF ---
     with tabs[5]:
-        st.header("💎 Consultant Report")
-        rep_club = st.selectbox("Club for Report", df['club'].unique(), key="rep_c_fix")
+        st.header("💎 Executive Performance Report")
+        rep_club = st.selectbox("Select Club for Report", df['club'].unique(), key="rep_c_final")
         if st.button("Generate Strategy PDF"):
-            wp = st.session_state.get('win_p', 50.0)
-            pdf_b = generate_pdf(df, rep_club, wp, "Maintain Tactical Shape")
-            st.download_button("📥 Download PDF", data=pdf_b, file_name="Executive_Report.pdf")
+            wp = st.session_state.get('current_win_p', 50.0)
+            pdf_b = generate_pdf(df, rep_club, wp, "Maintain tactical discipline and physical load management.")
+            st.download_button("📥 Download Report", data=pdf_b, file_name=f"{rep_club}_Strategy.pdf")
 
 else:
-    st.info("Upload CSV or Sync Cloud to activate.")
+    st.info("Upload CSV or Sync Cloud to activate the Elite Analytics Suite.")
